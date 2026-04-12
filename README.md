@@ -101,3 +101,6 @@ MONGODB_URI=your_mongodb_connection_string
 
 # Server Configuration
 PORT=3001
+
+## 👥 Authors
+* **Shreyansh Upadhyay** - *Lead Developer / Project Vision* - [@shreyanshuphadhyay10](https://github.com/shreyanshuphadhyay10)
