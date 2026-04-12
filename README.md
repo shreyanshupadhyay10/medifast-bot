@@ -42,129 +42,44 @@ jaipur-pharmacy-bot/
 
 ---
 
-## ⚙️ Environment Variables
 
-Copy `.env.example` to `.env` and fill in:
 
-| Variable | Description |
-|---|---|
-| `TELEGRAM_BOT_TOKEN` | From [@BotFather](https://t.me/BotFather) |
-| `MONGODB_URI` | MongoDB Atlas connection string |
-| `PORT` | Server port (default: 3000) |
-| `NODE_ENV` | `development` or `production` |
-| `ADMIN_TELEGRAM_IDS` | Comma-separated Telegram user IDs |
-| `SOS_ALERT_CHAT_ID` | Telegram group/channel ID for SOS broadcasts |
-| `WEBHOOK_DOMAIN` | Your public HTTPS URL (production only) |
+🚀 MediFast Bot
+Hyperlocal Medicine Access via Real-Time Inventory Tracking
 
----
+MediFast is a specialized Telegram assistant designed to eliminate the "medicine hunt" in Jaipur. It bridges the gap between patients in need and local pharmacies by providing a searchable, live inventory database and an emergency SOS broadcast system.
 
-## 🚀 Local Development
+📍 Project Status: Phase 1
+This repository currently contains the core infrastructure for the MediFast Telegram Bot, focusing on:
 
-### 1. Prerequisites
-- Node.js 18+
-- MongoDB Atlas account (free tier is fine)
-- A Telegram bot token from [@BotFather](https://t.me/BotFather)
+User/Pharmacist Segmentation: Logic to handle different interactions for medicine seekers and providers.
 
-### 2. Install dependencies
-```bash
-npm install
-```
+Database Schema: Initial MongoDB models for Pharmacies, Inventory, and SOSRequests.
 
-### 3. Configure environment
-```bash
-cp .env.example .env
-# Edit .env with your values
-```
+Search Foundation: Basic keyword-based search for medicine availability within the local database.
 
-### 4. Seed the database
-```bash
-npm run seed
-```
+🌟 Key Features (Current & Roadmap)
+Search & Find: Users can query for specific medicines to see which nearby shops have them in stock.
 
-### 5. Start in dev mode (long-polling, no webhook needed)
-```bash
-npm run dev
-```
+SOS Broadcast: When a medicine is unavailable, a user can trigger an SOS that alerts all registered pharmacies in a 5km radius.
 
-The bot will start polling for updates. Open Telegram and send `/start` to your bot.
+Zero-Entry Inventory (Upcoming): Integration with OpenAI Vision API to allow pharmacists to update stock by simply snapping a photo of an invoice.
 
----
+Agentic AI (Upcoming): Moving from command-based logic to a LangChain agent that understands natural language and symptoms.
 
-## 🌐 Deployment
+🛠 Tech Stack
+Runtime: Node.js
 
-### Option A: Render (Recommended — Free)
+Bot API: Telegraf (Telegram Bot API)
 
-1. Push your code to GitHub
-2. Go to [render.com](https://render.com) → New → Web Service
-3. Connect your GitHub repo
-4. Render auto-detects `render.yaml` — click **Deploy**
-5. In the Render dashboard → **Environment** tab, add all env variables
-6. Set `WEBHOOK_DOMAIN` to your Render URL (e.g. `https://jaipur-pharmacy-bot.onrender.com`)
-7. Set `NODE_ENV=production`
+Database Management: MongoDB Compass (Local/Manual GUI management)
 
-> ⚠️ Free Render instances spin down after 15 min of inactivity. Use a cron ping service like [cron-job.org](https://cron-job.org) to ping `/health` every 10 minutes.
+Environment: Managed via .env for secure configuration.
 
-### Option B: Railway
+🧑‍💻 For Contributors
+1. Prerequisites
+Node.js v18+
 
-1. Push to GitHub
-2. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub
-3. Add all environment variables in the Railway dashboard
-4. Railway auto-assigns a domain — set it as `WEBHOOK_DOMAIN`
-5. Railway keeps the service always-on (no spin-down issue)
+A Telegram Bot Token (from @BotFather)
 
----
-
-## 🤖 Bot Commands Reference
-
-### User Commands
-| Command | Description |
-|---|---|
-| `/start` | Welcome message |
-| `/search <medicine>` | Search for a medicine |
-| `/sos <medicine>` | Alert the network for a rare medicine |
-| `/nearby` | Browse pharmacies by area |
-| `/areas` | List all covered areas |
-| `/help` | All commands |
-
-### Admin Commands
-| Command | Description |
-|---|---|
-| `/admin` | Admin menu |
-| `/addpharmacy name\|area\|address\|phone\|hours` | Add a new pharmacy |
-| `/addmedicine pharmacyId\|medicine\|price\|inStock\|generic\|category` | Add medicine to inventory |
-| `/updatestock pharmacyId\|medicine\|true/false` | Update stock status |
-| `/opensos` | View open SOS requests |
-| `/stats` | Database statistics |
-
----
-
-## 🔌 REST API Endpoints
-
-| Endpoint | Description |
-|---|---|
-| `GET /` | Service info |
-| `GET /health` | Health check with DB stats |
-| `GET /api/search?q=paracetamol` | JSON medicine search |
-| `GET /api/pharmacies?area=Mansarovar` | List pharmacies (optionally filtered) |
-
----
-
-## 🧠 How Search Works
-
-1. User sends a medicine name (e.g. "paracitamol" — misspelled)
-2. All in-stock inventory is fetched from MongoDB with pharmacy details
-3. **Fuse.js** runs fuzzy matching with configurable threshold (0.4) — handles typos, partial names, generic names
-4. Results are sorted by match score and returned as a formatted Telegram message
-5. If no results → user is prompted to raise an **SOS alert**
-6. SOS alerts are stored in DB and broadcast to the admin Telegram group
-
----
-
-## 📈 Scaling Beyond Hackathon
-
-- **Redis** for rate limiting instead of in-memory Map
-- **Mongoose pagination** for large result sets  
-- **Webhook verification** (check `X-Telegram-Bot-Api-Secret-Token` header)
-- **Admin web dashboard** using the REST API
-- **Automated stock verification** — WhatsApp/SMS to pharmacies daily
-- **Location-based search** using MongoDB `$near` with GPS coordinates
+MongoDB Compass installed locally or a local MongoDB connection string (mongodb://localhost:27017/medifast).
