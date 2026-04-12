@@ -83,3 +83,21 @@ Node.js v18+
 A Telegram Bot Token (from @BotFather)
 
 MongoDB Compass installed locally or a local MongoDB connection string (mongodb://localhost:27017/medifast).
+
+## Configuration (Environment Variables)
+Since the .env file is ignored for security, you must create one locally to run the bot:
+
+Create a file named .env in the root directory.
+
+Copy the following template and add your specific keys:
+
+Plaintext
+# Telegram Configuration
+TELEGRAM_BOT_TOKEN=your_token_from_botfather
+
+# Database Configuration
+# For Compass local: mongodb://localhost:27017/medifast
+MONGODB_URI=your_mongodb_connection_string
+
+# Server Configuration
+PORT=3001
