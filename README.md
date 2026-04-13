@@ -1,3 +1,7 @@
+![Project Lead](https://img.shields.io/badge/Lead-Shreyansh%20Upadhyay-blue)
+![Status](https://img.shields.io/badge/Status-Phase%201%20Live-green)
+
+
 # 🏥 Jaipur Pharmacy Availability Bot
 
 A hyperlocal Telegram bot for Jaipur citizens to instantly find which nearby pharmacies have a medicine in stock. Built for a 48-hour hackathon.
