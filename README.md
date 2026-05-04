@@ -1,374 +1,215 @@
 # MediFast AI
 
-India-first medicine assistant for Telegram.
+India-first AI medicine assistant for Telegram (WhatsApp-ready architecture).
 
-MediFast AI helps people search medicines, understand simple Hindi/Hinglish symptom queries, manage family medicine needs, browse nearby pharmacies, and repeat common medicine searches faster.
+MediFast AI helps users:
+- search medicines instantly (name, brand, generic, typo tolerant)
+- search in Hindi/Hinglish symptom style (e.g., `bukhar ki tablet`, `sar dard`)
+- manage family medicine needs
+- discover nearby pharmacies (area + location-ready module)
+- raise SOS alerts for hard-to-find medicines
+- get reorder hints from recent search history
 
-It is built as a production-safe MVP on top of the existing MediFast Telegram bot. Existing medicine search, pharmacy inventory, SOS, admin commands, and REST APIs are preserved.
+> ⚠️ Medical safety: This bot helps discover medicines and is not a replacement for a doctor.
 
-> Medical safety note: This bot helps users discover medicines and pharmacy availability. It is not a replacement for a doctor.
+---
 
-## What Changed In This Upgrade
+## What This Project Is
 
-This patch upgrades the old Jaipur pharmacy availability bot into a more polished product demo called **MediFast AI**.
+This project upgrades the original Jaipur pharmacy Telegram bot into a startup-style MVP named **MediFast AI**, while preserving existing working flows.
 
-New things added:
+### Upgrade Highlights (from previous version)
 
-- Hinglish and Hindi smart search layer
-- Family medicine profiles
-- Cleaner premium search result messages
-- Recent search history for repeat/reorder use cases
-- Nearby pharmacy location-ready architecture
-- Better Telegram buttons and onboarding
-- Safer medical disclaimer in user-facing flows
-- Removed accidental bot token logging from startup
+- ✅ Natural-language symptom intent mapping (Hindi + Hinglish + English)
+- ✅ Family profile onboarding and member management
+- ✅ Cleaner premium Telegram response formatting
+- ✅ Reorder suggestion using user search history
+- ✅ Nearby pharmacy integration-ready architecture
+- ✅ SOS workflow for rare/unavailable medicines
+- ✅ Alias-aware search expansion (e.g. Modafinil/Modalert/Moda Alert, Ivermectin/Ivak)
+- ✅ Better onboarding UX with inline actions
 
-## Main Features
-
-### 1. Smart Hinglish / Hindi Search
-
-Users no longer need to type only exact medicine names.
-
-They can type natural queries like:
-
-```text
-Sar dard ki dawa chaiye
-Bukhar ki tablet
-Pet dard medicine
-Headache medicine
-Khansi ke liye kuch
-Zukham dawa
-Fever medicine for child
-Gas acidity tablet
-Ulti ki medicine
-```
-
-The bot understands common intent and maps it to useful medicine search categories.
-
-Examples:
-
-| User says | Bot understands |
-| --- | --- |
-| sar dard | headache / pain relief |
-| bukhar | fever |
-| khansi | cough |
-| zukham | cold / allergy |
-| pet dard | stomach pain |
-| gas / acidity | acidity |
-| ulti | nausea / vomiting |
-
-If the bot is not confident, it asks the user for a clearer search instead of guessing.
-
-### 2. Family Profiles
-
-Users can save basic family member details and search in a more natural way.
-
-Family member fields:
-
-- Name
-- Relation
-- Age group: child, adult, or senior
-- Notes, optional
-
-Commands:
-
-```text
-/family
-/addmember
-/members
-/removeMember
-```
-
-Example:
-
-```text
-/addmember Papa|papa|senior|diabetes and BP
-```
-
-After this, users can type:
-
-```text
-papa fever medicine
-mom acidity tablet
-reorder papa medicine
-```
-
-### 3. Better Search Results
-
-Search responses are now cleaner and more demo-ready.
-
-Results show:
-
-- Medicine name
-- Use case
-- Salt / generic composition
-- Brand or alternative name when available
-- Price
-- Pharmacy name and area
-- Address and contact details
-- Availability confidence
-- Last verified time
-- Prescription tag where needed
-- Medical safety disclaimer
-
-### 4. Recent Search / Reorder Flow
-
-The bot stores recent searches per Telegram user.
-
-If the same user searches the same medicine again, the bot can suggest:
-
-```text
-Need to reorder previous medicine?
-```
-
-For family members, users can try:
-
-```text
-reorder papa medicine
-```
-
-The bot checks recent family-linked search history and shows the last medicine searched for that member.
-
-### 5. Nearby Pharmacy Ready
-
-The `/nearby` command now supports two modes:
-
-- Browse pharmacies by area
-- Share location
-
-When location is shared, the bot returns:
-
-```text
-Nearby pharmacy module ready for integration.
-```
-
-The code now has a separate nearby pharmacy service so future integrations can be added cleanly:
-
-- Google Maps
-- Live stock systems
-- Pharmacy partner APIs
-- Distance based sorting
-
-### 6. Better Telegram UX
-
-The bot now has inline buttons for:
-
-- Search again
-- Add family member
-- View members
-- Nearby pharmacy
-- SOS alert
-- Language preference on start
-
-The `/start`, `/help`, and `/about` messages now use the MediFast AI product tone.
-
-## Commands
-
-### User Commands
-
-```text
-/start
-/help
-/about
-/feedback
-/search <medicine or symptom>
-/nearby
-/areas
-/sos <medicine name>
-/family
-/addmember
-/members
-/removeMember <name or relation>
-```
-
-### Admin Commands
-
-```text
-/admin
-/addpharmacy
-/addmedicine
-/updatestock
-/opensos
-/stats
-```
-
-## Demo Script
-
-Use these in Telegram to show the upgraded MVP:
-
-```text
-/start
-Bukhar ki tablet
-Sar dard ki dawa chaiye
-Gas acidity tablet
-/addmember Papa|papa|senior|diabetes and BP
-papa fever medicine
-reorder papa medicine
-/family
-/members
-/nearby
-/sos rare medicine name
-```
+---
 
 ## Tech Stack
 
-- Node.js
-- grammY for Telegram bot handling
-- Express for API server
-- MongoDB with Mongoose
-- Fuse.js for fuzzy medicine search
-- Winston for logging
-- dotenv for environment config
+- **Runtime:** Node.js (>=18)
+- **Bot Framework:** grammY
+- **API Server:** Express
+- **Database:** MongoDB + Mongoose
+- **Search:** Fuse.js fuzzy matching
+- **Logging:** Winston
+- **Security:** Helmet, CORS, express-rate-limit
+- **Config:** dotenv (`.env`)
 
-## Project Structure
+---
 
-```text
-medifast-bot/
-├── config/
-│   └── database.js
-├── scripts/
-│   └── seed.js
-├── src/
-│   ├── bot/
-│   │   ├── commands/
-│   │   │   ├── admin.js
-│   │   │   ├── family.js
-│   │   │   ├── nearby.js
-│   │   │   ├── search.js
-│   │   │   └── sos.js
-│   │   ├── middleware/
-│   │   │   ├── adminGuard.js
-│   │   │   └── rateLimiter.js
-│   │   └── index.js
-│   ├── models/
-│   │   ├── Inventory.js
-│   │   ├── Pharmacy.js
-│   │   ├── SearchHistory.js
-│   │   ├── SosRequest.js
-│   │   └── UserProfile.js
-│   ├── services/
-│   │   ├── familyService.js
-│   │   ├── historyService.js
-│   │   ├── intentEngine.js
-│   │   ├── nearbyPharmacyService.js
-│   │   └── searchService.js
-│   ├── utils/
-│   │   ├── formatter.js
-│   │   └── logger.js
-│   ├── index.js
-│   └── server.js
-├── .env.example
-├── package.json
-└── render.yaml
+## Repository Structure
+
+```txt
+src/
+  bot/
+    commands/
+      admin.js
+      family.js
+      nearby.js
+      search.js
+      sos.js
+    middleware/
+      adminGuard.js
+      rateLimiter.js
+    index.js
+  models/
+    Inventory.js
+    Pharmacy.js
+    SearchHistory.js
+    SosRequest.js
+    UserProfile.js
+  services/
+    familyService.js
+    historyService.js
+    intentEngine.js
+    medicineAliasService.js
+    nearbyPharmacyService.js
+    searchService.js
+  utils/
+    formatter.js
+    logger.js
+  index.js
+  server.js
+scripts/
+  seed.js
 ```
+
+---
+
+## Features and Commands
+
+### User Commands
+
+- `/start` — welcome + language + quick actions
+- `/help` — all user commands
+- `/about` — product info
+- `/feedback` — share product feedback
+- `/search <medicine or symptom>` — search availability
+- `/nearby` — nearby pharmacies (area list + location sharing)
+- `/areas` — covered area list
+- `/sos <medicine name>` — raise alert for unavailable medicine
+- `/family` — family dashboard
+- `/addmember` — add member (`Name|relation|age group|notes`)
+- `/members` — view members
+- `/removeMember <name/relation>` — remove member
+
+### Admin Commands
+
+- `/admin`
+- `/addpharmacy`
+- `/addmedicine`
+- `/updatestock`
+- `/opensos`
+- `/stats`
+
+### Natural Input Examples
+
+- `Sar dard ki dawa chaiye`
+- `Bukhar ki tablet`
+- `Pet dard medicine`
+- `Gas acidity tablet`
+- `Khansi ke liye kuch`
+- `reorder papa medicine`
+- `mom fever medicine`
+- `moda alert` / `modafinil`
+- `ivak` / `ivermectin`
+
+---
 
 ## Setup
 
-### 1. Install dependencies
+### 1) Clone and install
 
 ```bash
+git clone <your-fork-url>
+cd medifast-bot
 npm install
 ```
 
-### 2. Create `.env`
+### 2) Configure environment
 
-Copy `.env.example` into `.env` and fill in values.
+Create `.env` from `.env.example` and set required values:
 
-```text
-TELEGRAM_BOT_TOKEN=your_token_from_botfather
-MONGODB_URI=your_mongodb_connection_string
-PORT=3001
+```env
+PORT=3000
+MONGODB_URI=<your_mongodb_connection_string>
+TELEGRAM_BOT_TOKEN=<your_telegram_bot_token>
+ADMIN_TELEGRAM_IDS=123456789,987654321
 ```
 
-For local MongoDB, an example URI is:
-
-```text
-mongodb://localhost:27017/medifast
-```
-
-### 3. Seed demo data
+### 3) Optional: seed sample data
 
 ```bash
 npm run seed
 ```
 
-### 4. Start the bot
-
-```bash
-npm start
-```
-
-For development:
+### 4) Run
 
 ```bash
 npm run dev
+# or
+npm start
 ```
 
-## API Endpoints
+---
 
-### Health
+## How To Run and Check in Terminal
 
-```text
-GET /health
+Use these exact commands:
+
+```bash
+# install deps
+npm install
+
+# run placeholder tests
+npm test
+
+# module sanity checks
+node -e "require('./src/services/intentEngine'); require('./src/services/medicineAliasService'); require('./src/bot/commands/search'); console.log('module-check-ok')"
+
+# start app
+npm run dev
 ```
 
-### Search
+If app starts successfully, you should see server/bot startup logs.
 
-```text
-GET /api/search?q=Paracetamol
-```
+---
 
-### Pharmacies
+## Demo Flow (Hackathon Friendly)
 
-```text
-GET /api/pharmacies
-GET /api/pharmacies?area=Mansarovar
-```
+1. `/start`
+2. Select language
+3. Tap `Add Family Member`
+4. `/addmember Papa|papa|senior|diabetes and BP`
+5. Search with symptom: `bukhar ki tablet`
+6. Search with alias: `moda alert`
+7. Family contextual query: `reorder papa medicine`
+8. `/nearby` and share location
+9. `/sos rare medicine name`
 
-## Database Notes
+---
 
-Existing collections:
+## Production-Safe Notes
 
-- pharmacies
-- inventories
-- sosrequests
+- Existing commands and behavior are preserved; additions are modular.
+- All runtime config is env-driven.
+- No hardcoded secrets.
+- Nearby location path is integration-ready placeholder architecture for maps/provider plug-in.
 
-New collections from this upgrade:
+---
 
-- userprofiles
-- searchhistories
+## Roadmap (Next Iteration)
 
-No manual migration is required. Mongoose creates these collections when the features are first used.
+- Full India medicine catalog ingestion pipeline
+- Geo-distance pharmacy ranking (5km/10km)
+- Guardian alert notifications on reorder/order events
+- WhatsApp channel integration
+- Analytics dashboard for unresolved search intents
 
-## Safety Rules In The Product
-
-- The bot does not replace a doctor.
-- Prescription medicines are marked with an Rx tag when available in inventory data.
-- Symptom search is used for discovery, not diagnosis.
-- The bot encourages users to confirm stock with the pharmacy.
-- Serious symptoms should still go to a doctor or emergency care.
-
-## Next Scale Ideas
-
-Good next features to add:
-
-1. Real automated tests for search, family profiles, and Telegram callbacks.
-2. WhatsApp support using the same service layer.
-3. Distance based nearby pharmacy sorting.
-4. Real Google Maps or Mapbox integration.
-5. Pharmacy partner dashboard for live stock updates.
-6. Pharmacist inventory upload from CSV or invoice images.
-7. Safer medicine classification for prescription-only drugs.
-8. Better multilingual support for Hindi, Hinglish, and regional spellings.
-9. Open-source LLM fallback later, only for low-confidence intent understanding.
-10. Local or low-cost open-source models such as Llama, Mistral, Gemma, or Indic language models, depending on hosting cost and accuracy.
-11. Refill reminders for chronic medicines.
-12. Family health cabinet with saved recurring medicines.
-13. Order handoff to pharmacy WhatsApp or partner checkout.
-14. Admin analytics for most searched medicines and shortage trends.
-
-The future AI direction should stay cost-conscious. The current MVP uses lightweight rules and Fuse.js. A cheaper open-source LLM can be added later only where rules are not enough.
-
-## Authors
-
-Built and maintained in the MediFast bot fork by [Ruchin Audichya](https://github.com/Ruchin-Audichya).
