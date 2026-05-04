@@ -139,7 +139,15 @@ const createBot = () => {
     await setLanguage(ctx.from, language);
     await ctx.answerCallbackQuery("Saved");
     await ctx.reply(
-      `✅ Language saved: ${language}\n\nType a medicine or symptom now. Example: bukhar ki tablet`
+      `✅ Language saved: ${language}\n\nWould you like to add a guardian/family member for medicine tracking?`,
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: "➕ Add Family Member", callback_data: "family:add" },
+            { text: "⏭ Skip", callback_data: "prompt_search" },
+          ]],
+        },
+      }
     );
   });
 
