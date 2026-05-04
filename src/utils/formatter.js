@@ -27,15 +27,54 @@ const formatVerifiedTime = (date) => {
   return `${days}d ago`;
 };
 
+const MEDICAL_DISCLAIMER =
+  "This bot helps discover medicines and is not a replacement for a doctor.";
+
+const formatAvailabilityConfidence = (score) => {
+  if (score <= 0.18) return "High";
+  if (score <= 0.38) return "Good";
+  return "Discovery";
+};
+
+const formatUseCase = (item, intent) => {
+  if (intent?.label) return intent.label;
+  const categoryMap = {
+    painkiller: "pain relief / fever support",
+    gastro: "stomach / acidity support",
+    respiratory: "cold / cough / allergy support",
+    vitamins: "vitamin support",
+    antidiabetic: "diabetes care",
+    cardiac: "heart health",
+    dermatology: "skin care",
+    neurological: "neurology",
+    antibiotic: "infection care",
+  };
+  return categoryMap[item.category] || "medicine availability";
+};
+
 /**
  * Format a list of inventory search results into a Telegram HTML message.
  */
-const formatSearchResults = (results, query) => {
+const formatSearchResults = (results, query, context = {}) => {
   const displayed = results.slice(0, MAX_RESULTS_PER_MESSAGE);
   const hasMore = results.length > MAX_RESULTS_PER_MESSAGE;
+  const { intent, mentionedMember, repeatSearch } = context;
 
-  let message = `🔍 <b>Results for: "${escapeHtml(query)}"</b>\n`;
-  message += `Found <b>${results.length}</b> match${results.length !== 1 ? "es" : ""}\n\n`;
+  let message = `🏥 <b>MediFast AI Results</b>\n`;
+  message += `Query: <b>${escapeHtml(query)}</b>\n`;
+  if (intent?.label) {
+    message += `Understood as: <i>${escapeHtml(intent.label)}</i>`;
+    if (intent.confidence) message += ` (${escapeHtml(intent.confidence)} confidence)`;
+    message += `\n`;
+  }
+  if (mentionedMember) {
+    message += `For: <b>${escapeHtml(mentionedMember.name)}</b> (${escapeHtml(mentionedMember.ageGroup)})\n`;
+  }
+  message += `Found <b>${results.length}</b> live match${results.length !== 1 ? "es" : ""}\n`;
+  if (repeatSearch?.topMedicineName) {
+    message += `\n🔁 Need to reorder previous medicine: <b>${escapeHtml(repeatSearch.topMedicineName)}</b>?\n`;
+  }
+  message += `\n`;
 
   displayed.forEach((item, index) => {
     const stockEmoji = item.inStock ? "✅" : "❌";
@@ -43,12 +82,18 @@ const formatSearchResults = (results, query) => {
     const rxTag = item.requiresPrescription ? " 📋 <i>Rx required</i>" : "";
 
     message += `${index + 1}. ${stockEmoji} <b>${escapeHtml(item.medicineName)}</b>${rareTag}\n`;
+    message += `   Use case: ${escapeHtml(formatUseCase(item, intent))}\n`;
 
     if (item.genericName) {
-      message += `   Generic: <i>${escapeHtml(item.genericName)}</i>\n`;
+      message += `   Salt: <i>${escapeHtml(item.genericName)}</i>\n`;
+    }
+
+    if (item.brand) {
+      message += `   Brand/alternative: ${escapeHtml(item.brand)}\n`;
     }
 
     message += `   💊 ${formatPrice(item.price, item.unit)}${rxTag}\n`;
+    message += `   Confidence: ${formatAvailabilityConfidence(item.matchScore)}\n`;
     message += `   🏪 <b>${escapeHtml(item.pharmacy.name)}</b> — ${escapeHtml(item.pharmacy.area)}\n`;
     message += `   📍 ${escapeHtml(item.pharmacy.address)}\n`;
 
@@ -68,7 +113,12 @@ const formatSearchResults = (results, query) => {
     message += `<i>... and ${results.length - MAX_RESULTS_PER_MESSAGE} more result(s). Refine your search for better results.</i>\n`;
   }
 
-  message += `\n💡 <i>Stock info may change. Call ahead to confirm!</i>`;
+  if (intent?.safetyNote) {
+    message += `\n⚕️ <i>${escapeHtml(intent.safetyNote)}</i>\n`;
+  }
+
+  message += `\n💡 <i>Stock info may change. Call ahead to confirm.</i>\n`;
+  message += `⚠️ <i>${MEDICAL_DISCLAIMER}</i>`;
 
   return message;
 };
@@ -83,7 +133,16 @@ const formatNotFound = (query) => {
     `You can:\n` +
     `• Try a different spelling or generic name\n` +
     `• Use /sos to raise an alert — our network will help locate it!\n` +
-    `• Use /help to see all commands`
+      `• Use /help to see all commands`
+  );
+};
+
+const formatSearchFollowUp = (query) => {
+  return (
+    `🤔 <b>I need one more detail</b>\n\n` +
+    `I could not confidently understand "${escapeHtml(query)}".\n` +
+    `Try a medicine name like <code>Dolo 650</code>, or a symptom like <code>bukhar ki tablet</code>, <code>sar dard</code>, <code>gas acidity</code>.\n\n` +
+    `<i>${MEDICAL_DISCLAIMER}</i>`
   );
 };
 
@@ -105,16 +164,17 @@ const formatSosConfirm = (medicineName) => {
  */
 const formatWelcome = (firstName) => {
   return (
-    `🏥 <b>Jaipur Pharmacy Bot</b>\n\n` +
+    `🏥 <b>MediFast AI</b>\n\n` +
     `Namaste ${escapeHtml(firstName || "there")}! 🙏\n\n` +
-    `Find medicines at pharmacies near you in Jaipur — instantly.\n\n` +
+    `India-first medicine assistant for Telegram. Search in English, Hindi, or Hinglish and find pharmacy availability fast.\n\n` +
     `<b>How to use:</b>\n` +
-    `• Just type any medicine name to search\n` +
+    `• Type a medicine or symptom: <code>bukhar ki tablet</code>, <code>sar dard</code>, <code>gas acidity</code>\n` +
     `• /search <i>medicine name</i> — search directly\n` +
-    `• /sos <i>medicine name</i> — can't find it? raise an alert!\n` +
-    `• /nearby — browse by area\n` +
+    `• /family — save family profiles\n` +
+    `• /nearby — browse or share location\n` +
+    `• /sos <i>medicine name</i> — raise an alert\n` +
     `• /help — all commands\n\n` +
-    `<b>Example:</b> Type <code>Paracetamol</code> or <code>Metformin 500mg</code>`
+    `<i>${MEDICAL_DISCLAIMER}</i>`
   );
 };
 
@@ -123,10 +183,15 @@ const formatWelcome = (firstName) => {
  */
 const formatHelp = () => {
   return (
-    `<b>📋 Jaipur Pharmacy Bot — Commands</b>\n\n` +
+    `<b>📋 MediFast AI — Commands</b>\n\n` +
     `<b>🔍 Search</b>\n` +
-    `/search &lt;name&gt; — Search for a medicine\n` +
-    `<i>Or just type the medicine name directly!</i>\n\n` +
+    `/search &lt;name or symptom&gt; — Search medicines\n` +
+    `<i>Or just type: bukhar ki tablet, sar dard, cough medicine</i>\n\n` +
+    `<b>👨‍👩‍👧 Family</b>\n` +
+    `/family — Family medicine dashboard\n` +
+    `/addmember — Add a family member\n` +
+    `/members — View saved members\n` +
+    `/removeMember &lt;name&gt; — Remove a member\n\n` +
     `<b>🆘 SOS</b>\n` +
     `/sos &lt;name&gt; — Alert the network for a rare/unavailable medicine\n\n` +
     `<b>📍 Browse</b>\n` +
@@ -135,7 +200,60 @@ const formatHelp = () => {
     `<b>ℹ️ Info</b>\n` +
     `/about — About this bot\n` +
     `/feedback — Send feedback\n\n` +
-    `💡 <i>Tip: Fuzzy search works! "paracetamol", "paracitamol", "PCM" all work.</i>`
+    `💡 <i>Tip: Try “mom fever medicine” or “reorder papa medicine”.</i>\n\n` +
+    `⚠️ <i>${MEDICAL_DISCLAIMER}</i>`
+  );
+};
+
+const formatFamilyMenu = (profile) => {
+  return (
+    `👨‍👩‍👧 <b>Family Medicine Hub</b>\n\n` +
+    `Saved members: <b>${profile.familyMembers.length}</b>\n\n` +
+    `Search naturally: <code>mom fever medicine</code>, <code>papa BP tablet</code>, or <code>reorder papa medicine</code>.`
+  );
+};
+
+const formatAddMemberPrompt = () => {
+  return (
+    `➕ <b>Add Family Member</b>\n\n` +
+    `Send details in this format:\n` +
+    `<code>Name|relation|age group|notes</code>\n\n` +
+    `Age group can be <b>child</b>, <b>adult</b>, or <b>senior</b>.\n\n` +
+    `Example:\n<code>Papa|papa|senior|diabetes and BP</code>`
+  );
+};
+
+const formatMembers = (profile) => {
+  if (!profile.familyMembers.length) {
+    return "👨‍👩‍👧 <b>No family members yet.</b>\n\nUse /addmember to save one.";
+  }
+
+  let message = `👨‍👩‍👧 <b>Your Family Members</b>\n\n`;
+  profile.familyMembers.forEach((member, index) => {
+    message += `${index + 1}. <b>${escapeHtml(member.name)}</b> — ${escapeHtml(member.relation)}\n`;
+    message += `   Age group: ${escapeHtml(member.ageGroup)}\n`;
+    if (member.notes) message += `   Notes: ${escapeHtml(member.notes)}\n`;
+    message += `\n`;
+  });
+  message += `<i>Try: reorder papa medicine, mom fever medicine.</i>`;
+  return message;
+};
+
+const formatReorderPrompt = (member, recent) => {
+  if (!recent) {
+    return (
+      `🔁 <b>Reorder</b>\n\n` +
+      `I found ${member ? escapeHtml(member.name) : "that family member"}, but there is no recent medicine history yet.\n` +
+      `Try searching first, for example: <code>${member ? escapeHtml(member.relation) : "papa"} fever medicine</code>.`
+    );
+  }
+
+  return (
+    `🔁 <b>Reorder previous medicine?</b>\n\n` +
+    `For: <b>${escapeHtml(member.name)}</b>\n` +
+    `Previous medicine: <b>${escapeHtml(recent.topMedicineName)}</b>\n` +
+    `Last searched: ${new Date(recent.createdAt).toLocaleDateString("en-IN")}\n\n` +
+    `Type <code>${escapeHtml(recent.topMedicineName)}</code> to check live availability again.`
   );
 };
 
@@ -145,5 +263,10 @@ module.exports = {
   formatSosConfirm,
   formatWelcome,
   formatHelp,
+  formatSearchFollowUp,
+  formatFamilyMenu,
+  formatAddMemberPrompt,
+  formatMembers,
+  formatReorderPrompt,
   escapeHtml,
 };

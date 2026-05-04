@@ -1,7 +1,14 @@
 const { Bot, GrammyError, HttpError } = require("grammy");
 const { handleSearch } = require("./commands/search");
 const { handleSos, handleSosStep, isInSosFlow } = require("./commands/sos");
-const { handleNearby, handleAreaSelection, handleAreas } = require("./commands/nearby");
+const { handleNearby, handleAreaSelection, handleAreas, handleLocation } = require("./commands/nearby");
+const {
+  handleFamily,
+  handleAddMember,
+  handleMembers,
+  handleRemoveMember,
+  handlePendingFamilyText,
+} = require("./commands/family");
 const {
   handleAdminMenu,
   handleAddPharmacy,
@@ -13,6 +20,7 @@ const {
 const { isAdmin } = require("./middleware/adminGuard");
 const { rateLimiter } = require("./middleware/rateLimiter");
 const { formatWelcome, formatHelp } = require("../utils/formatter");
+const { setLanguage } = require("../services/familyService");
 const logger = require("../utils/logger");
 
 const createBot = () => {
@@ -25,6 +33,19 @@ const createBot = () => {
   bot.command("start", async (ctx) => {
     await ctx.reply(formatWelcome(ctx.from?.first_name), {
       parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "English", callback_data: "onboard:lang:english" },
+            { text: "Hinglish", callback_data: "onboard:lang:hinglish" },
+            { text: "हिंदी", callback_data: "onboard:lang:hindi" },
+          ],
+          [
+            { text: "👨‍👩‍👧 Add Family", callback_data: "family:add" },
+            { text: "🔍 Search Medicine", callback_data: "prompt_search" },
+          ],
+        ],
+      },
     });
   });
 
@@ -34,12 +55,14 @@ const createBot = () => {
 
   bot.command("about", async (ctx) => {
     await ctx.reply(
-      `🏥 <b>Jaipur Pharmacy Bot</b> v1.0\n\n` +
-        `Built for Jaipur citizens to quickly find medicine availability.\n\n` +
-        `📊 Covers pharmacies across major areas in Jaipur.\n` +
-        `⚡ Fuzzy search — typos are okay!\n` +
+      `🏥 <b>MediFast AI</b>\n\n` +
+        `India-first medicine assistant for Telegram and WhatsApp-ready workflows.\n\n` +
+        `📊 Live pharmacy inventory foundation for Jaipur.\n` +
+        `⚡ Hindi, Hinglish, typo-tolerant medicine search.\n` +
+        `👨‍👩‍👧 Family profiles and refill history.\n` +
+        `📍 Nearby pharmacy architecture ready for maps and live stock.\n` +
         `🆘 SOS feature for rare medicines.\n\n` +
-        `Built with ❤️ during a hackathon.`,
+        `<i>This bot helps discover medicines and is not a replacement for a doctor.</i>`,
       { parse_mode: "HTML" }
     );
   });
@@ -68,6 +91,16 @@ const createBot = () => {
   // ── Nearby / Areas ────────────────────────────────────────────────────────
   bot.command("nearby", handleNearby);
   bot.command("areas", handleAreas);
+
+  // ── Family Profiles ──────────────────────────────────────────────────────
+  bot.command("family", handleFamily);
+  bot.command("addmember", async (ctx) => {
+    await handleAddMember(ctx, ctx.match?.trim());
+  });
+  bot.command("members", handleMembers);
+  bot.command("removeMember", async (ctx) => {
+    await handleRemoveMember(ctx, ctx.match?.trim());
+  });
 
   // ── Admin Commands ────────────────────────────────────────────────────────
   bot.command("admin", isAdmin, handleAdminMenu);
@@ -101,6 +134,48 @@ const createBot = () => {
     );
   });
 
+  bot.callbackQuery(/^onboard:lang:(english|hinglish|hindi)$/, async (ctx) => {
+    const language = ctx.match[1];
+    await setLanguage(ctx.from, language);
+    await ctx.answerCallbackQuery("Saved");
+    await ctx.reply(
+      `✅ Language saved: ${language}\n\nWould you like to add a guardian/family member for medicine tracking?`,
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: "➕ Add Family Member", callback_data: "family:add" },
+            { text: "⏭ Skip", callback_data: "prompt_search" },
+          ]],
+        },
+      }
+    );
+  });
+
+  bot.callbackQuery("family:open", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await handleFamily(ctx);
+  });
+
+  bot.callbackQuery("family:add", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await handleAddMember(ctx);
+  });
+
+  bot.callbackQuery("family:members", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await handleMembers(ctx);
+  });
+
+  bot.callbackQuery("nearby:open", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await handleNearby(ctx);
+  });
+
+  bot.callbackQuery(/^search_intent:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await handleSearch(ctx, ctx.match[1]);
+  });
+
   bot.callbackQuery(/^area:(.+)$/, async (ctx) => {
     const area = ctx.match[1];
     await ctx.answerCallbackQuery();
@@ -121,10 +196,14 @@ const createBot = () => {
       if (handled) return;
     }
 
+    if (await handlePendingFamilyText(ctx)) return;
+
     // Otherwise, treat the message as a medicine search
     logger.debug(`Plain text search from ${ctx.from.id}: "${text}"`);
     await handleSearch(ctx, text);
   });
+
+  bot.on("message:location", handleLocation);
 
   // ── Error Handler ─────────────────────────────────────────────────────────
   bot.catch((err) => {

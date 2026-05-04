@@ -1,110 +1,215 @@
-![Project Lead](https://img.shields.io/badge/Lead-Shreyansh%20Upadhyay-blue)
-![Status](https://img.shields.io/badge/Status-Phase%201%20Live-green)
+# MediFast AI
 
+India-first AI medicine assistant for Telegram (WhatsApp-ready architecture).
 
-# 🏥 Jaipur Pharmacy Availability Bot
+MediFast AI helps users:
+- search medicines instantly (name, brand, generic, typo tolerant)
+- search in Hindi/Hinglish symptom style (e.g., `bukhar ki tablet`, `sar dard`)
+- manage family medicine needs
+- discover nearby pharmacies (area + location-ready module)
+- raise SOS alerts for hard-to-find medicines
+- get reorder hints from recent search history
 
-A hyperlocal Telegram bot for Jaipur citizens to instantly find which nearby pharmacies have a medicine in stock. Built for a 48-hour hackathon.
-
----
-
-## 🗂️ Project Structure
-
-```
-jaipur-pharmacy-bot/
-├── config/
-│   └── database.js              # MongoDB connection
-├── scripts/
-│   └── seed.js                  # Seed DB with sample pharmacies & medicines
-├── src/
-│   ├── bot/
-│   │   ├── commands/
-│   │   │   ├── admin.js         # Admin commands (add pharmacy, medicine, stats)
-│   │   │   ├── nearby.js        # /nearby and /areas commands
-│   │   │   ├── search.js        # /search and plain-text search handler
-│   │   │   └── sos.js           # /sos multi-step alert flow
-│   │   ├── middleware/
-│   │   │   ├── adminGuard.js    # Restrict commands to admin Telegram IDs
-│   │   │   └── rateLimiter.js   # In-memory rate limiter (15 req/min per user)
-│   │   └── index.js             # Bot creation, command registration
-│   ├── models/
-│   │   ├── Inventory.js         # Medicine inventory schema
-│   │   ├── Pharmacy.js          # Pharmacy schema
-│   │   └── SosRequest.js        # SOS alert schema
-│   ├── services/
-│   │   └── searchService.js     # Fuse.js fuzzy search + SOS logic
-│   ├── utils/
-│   │   ├── formatter.js         # Telegram HTML message formatters
-│   │   └── logger.js            # Winston logger
-│   ├── index.js                 # App entry point
-│   └── server.js                # Express server + REST API + webhook mount
-├── .env.example
-├── .gitignore
-├── package.json
-└── render.yaml                  # One-click Render deploy config
-```
+> ⚠️ Medical safety: This bot helps discover medicines and is not a replacement for a doctor.
 
 ---
 
+## What This Project Is
 
+This project upgrades the original Jaipur pharmacy Telegram bot into a startup-style MVP named **MediFast AI**, while preserving existing working flows.
 
-🚀 MediFast Bot
-Hyperlocal Medicine Access via Real-Time Inventory Tracking
+### Upgrade Highlights (from previous version)
 
-MediFast is a specialized Telegram assistant designed to eliminate the "medicine hunt" in Jaipur. It bridges the gap between patients in need and local pharmacies by providing a searchable, live inventory database and an emergency SOS broadcast system.
+- ✅ Natural-language symptom intent mapping (Hindi + Hinglish + English)
+- ✅ Family profile onboarding and member management
+- ✅ Cleaner premium Telegram response formatting
+- ✅ Reorder suggestion using user search history
+- ✅ Nearby pharmacy integration-ready architecture
+- ✅ SOS workflow for rare/unavailable medicines
+- ✅ Alias-aware search expansion (e.g. Modafinil/Modalert/Moda Alert, Ivermectin/Ivak)
+- ✅ Better onboarding UX with inline actions
 
-📍 Project Status: Phase 1
-This repository currently contains the core infrastructure for the MediFast Telegram Bot, focusing on:
+---
 
-User/Pharmacist Segmentation: Logic to handle different interactions for medicine seekers and providers.
+## Tech Stack
 
-Database Schema: Initial MongoDB models for Pharmacies, Inventory, and SOSRequests.
+- **Runtime:** Node.js (>=18)
+- **Bot Framework:** grammY
+- **API Server:** Express
+- **Database:** MongoDB + Mongoose
+- **Search:** Fuse.js fuzzy matching
+- **Logging:** Winston
+- **Security:** Helmet, CORS, express-rate-limit
+- **Config:** dotenv (`.env`)
 
-Search Foundation: Basic keyword-based search for medicine availability within the local database.
+---
 
-🌟 Key Features (Current & Roadmap)
-Search & Find: Users can query for specific medicines to see which nearby shops have them in stock.
+## Repository Structure
 
-SOS Broadcast: When a medicine is unavailable, a user can trigger an SOS that alerts all registered pharmacies in a 5km radius.
+```txt
+src/
+  bot/
+    commands/
+      admin.js
+      family.js
+      nearby.js
+      search.js
+      sos.js
+    middleware/
+      adminGuard.js
+      rateLimiter.js
+    index.js
+  models/
+    Inventory.js
+    Pharmacy.js
+    SearchHistory.js
+    SosRequest.js
+    UserProfile.js
+  services/
+    familyService.js
+    historyService.js
+    intentEngine.js
+    medicineAliasService.js
+    nearbyPharmacyService.js
+    searchService.js
+  utils/
+    formatter.js
+    logger.js
+  index.js
+  server.js
+scripts/
+  seed.js
+```
 
-Zero-Entry Inventory (Upcoming): Integration with OpenAI Vision API to allow pharmacists to update stock by simply snapping a photo of an invoice.
+---
 
-Agentic AI (Upcoming): Moving from command-based logic to a LangChain agent that understands natural language and symptoms.
+## Features and Commands
 
-🛠 Tech Stack
-Runtime: Node.js
+### User Commands
 
-Bot API: Telegraf (Telegram Bot API)
+- `/start` — welcome + language + quick actions
+- `/help` — all user commands
+- `/about` — product info
+- `/feedback` — share product feedback
+- `/search <medicine or symptom>` — search availability
+- `/nearby` — nearby pharmacies (area list + location sharing)
+- `/areas` — covered area list
+- `/sos <medicine name>` — raise alert for unavailable medicine
+- `/family` — family dashboard
+- `/addmember` — add member (`Name|relation|age group|notes`)
+- `/members` — view members
+- `/removeMember <name/relation>` — remove member
 
-Database Management: MongoDB Compass (Local/Manual GUI management)
+### Admin Commands
 
-Environment: Managed via .env for secure configuration.
+- `/admin`
+- `/addpharmacy`
+- `/addmedicine`
+- `/updatestock`
+- `/opensos`
+- `/stats`
 
-🧑‍💻 For Contributors
-1. Prerequisites
-Node.js v18+
+### Natural Input Examples
 
-A Telegram Bot Token (from @BotFather)
+- `Sar dard ki dawa chaiye`
+- `Bukhar ki tablet`
+- `Pet dard medicine`
+- `Gas acidity tablet`
+- `Khansi ke liye kuch`
+- `reorder papa medicine`
+- `mom fever medicine`
+- `moda alert` / `modafinil`
+- `ivak` / `ivermectin`
 
-MongoDB Compass installed locally or a local MongoDB connection string (mongodb://localhost:27017/medifast).
+---
 
-## Configuration (Environment Variables)
-Since the .env file is ignored for security, you must create one locally to run the bot:
+## Setup
 
-Create a file named .env in the root directory.
+### 1) Clone and install
 
-Copy the following template and add your specific keys:
+```bash
+git clone <your-fork-url>
+cd medifast-bot
+npm install
+```
 
-Plaintext
-# Telegram Configuration
-TELEGRAM_BOT_TOKEN=your_token_from_botfather
+### 2) Configure environment
 
-# Database Configuration
-# For Compass local: mongodb://localhost:27017/medifast
-MONGODB_URI=your_mongodb_connection_string
+Create `.env` from `.env.example` and set required values:
 
-# Server Configuration
-PORT=3001
+```env
+PORT=3000
+MONGODB_URI=<your_mongodb_connection_string>
+TELEGRAM_BOT_TOKEN=<your_telegram_bot_token>
+ADMIN_TELEGRAM_IDS=123456789,987654321
+```
 
-## 👥 Authors
-* **Shreyansh Upadhyay** - *Lead Developer / Project Vision* - [@shreyanshuphadhyay10](https://github.com/shreyanshuphadhyay10)
+### 3) Optional: seed sample data
+
+```bash
+npm run seed
+```
+
+### 4) Run
+
+```bash
+npm run dev
+# or
+npm start
+```
+
+---
+
+## How To Run and Check in Terminal
+
+Use these exact commands:
+
+```bash
+# install deps
+npm install
+
+# run placeholder tests
+npm test
+
+# module sanity checks
+node -e "require('./src/services/intentEngine'); require('./src/services/medicineAliasService'); require('./src/bot/commands/search'); console.log('module-check-ok')"
+
+# start app
+npm run dev
+```
+
+If app starts successfully, you should see server/bot startup logs.
+
+---
+
+## Demo Flow (Hackathon Friendly)
+
+1. `/start`
+2. Select language
+3. Tap `Add Family Member`
+4. `/addmember Papa|papa|senior|diabetes and BP`
+5. Search with symptom: `bukhar ki tablet`
+6. Search with alias: `moda alert`
+7. Family contextual query: `reorder papa medicine`
+8. `/nearby` and share location
+9. `/sos rare medicine name`
+
+---
+
+## Production-Safe Notes
+
+- Existing commands and behavior are preserved; additions are modular.
+- All runtime config is env-driven.
+- No hardcoded secrets.
+- Nearby location path is integration-ready placeholder architecture for maps/provider plug-in.
+
+---
+
+## Roadmap (Next Iteration)
+
+- Full India medicine catalog ingestion pipeline
+- Geo-distance pharmacy ranking (5km/10km)
+- Guardian alert notifications on reorder/order events
+- WhatsApp channel integration
+- Analytics dashboard for unresolved search intents
+

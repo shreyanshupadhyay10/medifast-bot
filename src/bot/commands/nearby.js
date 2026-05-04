@@ -1,5 +1,6 @@
 const Pharmacy = require("../../models/Pharmacy");
 const Inventory = require("../../models/Inventory");
+const { getNearbyPharmacyReadiness } = require("../../services/nearbyPharmacyService");
 const { escapeHtml } = require("../../utils/formatter");
 const logger = require("../../utils/logger");
 
@@ -34,12 +35,48 @@ const handleNearby = async (ctx) => {
   ]);
 
   await ctx.reply(
-    "📍 <b>Browse Pharmacies by Area</b>\n\nSelect your locality:",
+    "📍 <b>Nearby Pharmacies</b>\n\nShare location for live nearby matching, or browse by Jaipur area:",
     {
       parse_mode: "HTML",
-      reply_markup: { inline_keyboard: buttons },
+      reply_markup: {
+        keyboard: [[{ text: "📍 Share Location", request_location: true }]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+      },
     }
   );
+
+  await ctx.reply("Or select your locality:", {
+    parse_mode: "HTML",
+    reply_markup: { inline_keyboard: buttons },
+  });
+};
+
+const handleLocation = async (ctx) => {
+  const location = ctx.message.location;
+  if (!location) return;
+
+  try {
+    const readiness = await getNearbyPharmacyReadiness({
+      latitude: location.latitude,
+      longitude: location.longitude,
+    });
+
+    await ctx.reply(
+      `📍 <b>${escapeHtml(readiness.message)}</b>\n\n` +
+        `We received your location and the architecture is ready for Google Maps, pharmacy APIs, and live stock integrations.\n\n` +
+        `Active pharmacies tracked: <b>${readiness.activePharmacies}</b>\n` +
+        `Geo-ready pharmacies: <b>${readiness.geoIndexedPharmacies}</b>\n\n` +
+        `<i>For now, use /nearby to browse by area or type a medicine name to search stock.</i>`,
+      {
+        parse_mode: "HTML",
+        reply_markup: { remove_keyboard: true },
+      }
+    );
+  } catch (error) {
+    logger.error(`Location nearby error: ${error.message}`);
+    await ctx.reply("Could not process your location right now. Please try /nearby by area.");
+  }
 };
 
 /**
@@ -101,4 +138,4 @@ const handleAreas = async (ctx) => {
   );
 };
 
-module.exports = { handleNearby, handleAreaSelection, handleAreas, JAIPUR_AREAS };
+module.exports = { handleNearby, handleAreaSelection, handleAreas, handleLocation, JAIPUR_AREAS };

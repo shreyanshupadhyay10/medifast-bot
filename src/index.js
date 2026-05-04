@@ -1,5 +1,4 @@
 require("dotenv").config();
-console.log("TOKEN:", process.env.TELEGRAM_BOT_TOKEN);
 const connectDB = require("../config/database");
 const { createBot } = require("./bot");
 const { createServer } = require("./server");

@@ -22,12 +22,49 @@ const FUSE_OPTIONS = {
  * Search for medicines across all pharmacies.
  * Returns results sorted by: in-stock first, then best fuzzy match.
  */
-const searchMedicine = async (query) => {
+const uniqueById = (items) => {
+  const seen = new Set();
+  return items.filter((item) => {
+    const id = item._id.toString();
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+};
+
+const mapInventoryResult = (item, score = 0.5) => ({
+  id: item._id.toString(),
+  medicineName: item.medicineName,
+  genericName: item.genericName || null,
+  brand: item.brand || null,
+  price: item.price || null,
+  unit: item.unit,
+  inStock: item.inStock,
+  quantity: item.quantity,
+  requiresPrescription: item.requiresPrescription,
+  isRare: item.isRare,
+  category: item.category,
+  lastVerified: item.lastVerified,
+  matchScore: score,
+  pharmacy: {
+    id: item.pharmacy._id.toString(),
+    name: item.pharmacy.name,
+    area: item.pharmacy.area,
+    address: item.pharmacy.address,
+    phone: item.pharmacy.contact?.phone || null,
+    whatsapp: item.pharmacy.contact?.whatsapp || null,
+    hours: item.pharmacy.is24x7 ? "Open 24×7" : item.pharmacy.openingHours,
+  },
+});
+
+const searchMedicine = async (query, options = {}) => {
   if (!query || query.trim().length < 2) {
     return { results: [], sos: false, query };
   }
 
   const trimmedQuery = query.trim();
+  const searchTerms = [trimmedQuery, ...(options.searchTerms || [])].filter(Boolean);
+  const categories = options.categories || [];
 
   // Fetch all inventory items with pharmacy details
   // For scale, add a pre-filter using MongoDB text index first
@@ -46,9 +83,22 @@ const searchMedicine = async (query) => {
 
   // Run Fuse.js fuzzy search
   const fuse = new Fuse(activeInventory, FUSE_OPTIONS);
-  const fuseResults = fuse.search(trimmedQuery);
+  const fuseResults = uniqueById(
+    searchTerms.flatMap((term) => fuse.search(term).map((result) => ({
+      ...result.item,
+      _matchScore: result.score,
+    })))
+  );
 
-  if (fuseResults.length === 0) {
+  const categoryResults = categories.length
+    ? activeInventory
+        .filter((item) => categories.includes(item.category))
+        .map((item) => ({ ...item, _matchScore: 0.55 }))
+    : [];
+
+  const combinedResults = uniqueById([...fuseResults, ...categoryResults]);
+
+  if (combinedResults.length === 0) {
     // No match found — check if this is a known rare medicine
     const rareMatch = await Inventory.findOne({
       isRare: true,
@@ -64,30 +114,9 @@ const searchMedicine = async (query) => {
   }
 
   // Map to clean result objects
-  const results = fuseResults.map(({ item, score }) => ({
-    id: item._id.toString(),
-    medicineName: item.medicineName,
-    genericName: item.genericName || null,
-    brand: item.brand || null,
-    price: item.price || null,
-    unit: item.unit,
-    inStock: item.inStock,
-    quantity: item.quantity,
-    requiresPrescription: item.requiresPrescription,
-    isRare: item.isRare,
-    category: item.category,
-    lastVerified: item.lastVerified,
-    matchScore: score,
-    pharmacy: {
-      id: item.pharmacy._id.toString(),
-      name: item.pharmacy.name,
-      area: item.pharmacy.area,
-      address: item.pharmacy.address,
-      phone: item.pharmacy.contact?.phone || null,
-      whatsapp: item.pharmacy.contact?.whatsapp || null,
-      hours: item.pharmacy.is24x7 ? "Open 24×7" : item.pharmacy.openingHours,
-    },
-  }));
+  const results = combinedResults
+    .map((item) => mapInventoryResult(item, item._matchScore))
+    .sort((a, b) => a.matchScore - b.matchScore);
 
   // Check if any result is a rare medicine
   const hasRare = results.some((r) => r.isRare);
