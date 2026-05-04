@@ -2,6 +2,7 @@ const { searchMedicine } = require("../../services/searchService");
 const { detectIntent } = require("../../services/intentEngine");
 const { findMentionedFamilyMember, getOrCreateProfile } = require("../../services/familyService");
 const { getRecentForFamilyMember, getRecentRepeat, recordSearch } = require("../../services/historyService");
+const { expandMedicineAliases } = require("../../services/medicineAliasService");
 const {
   formatSearchResults,
   formatNotFound,
@@ -67,7 +68,8 @@ const handleSearch = async (ctx, query) => {
     }
 
     const repeatSearch = await getRecentRepeat(ctx.from.id, intent.normalizedQuery);
-    const { results, sos, query: normalizedQuery } = await searchMedicine(intent.normalizedQuery, intent);
+    const aliasTerms = expandMedicineAliases(intent.normalizedQuery);
+    const { results, sos, query: normalizedQuery } = await searchMedicine(intent.normalizedQuery, { ...intent, searchTerms: aliasTerms });
 
     if (results.length === 0) {
       if (sos) {
