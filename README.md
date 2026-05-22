@@ -106,5 +106,15 @@ MONGODB_URI=your_mongodb_connection_string
 # Server Configuration
 PORT=3001
 
+## Roadmap
+
+- [ ] **WhatsApp Integration** — Migrate to Meta Cloud API for broader reach across India
+- [ ] **Agentic AI** — LLM-powered natural language queries in Hindi/Hinglish with symptom-to-medicine mapping
+- [ ] **Prescription OCR** — Google Vision API to extract medicine names from prescription photos and search all at once
+- [ ] **GPS-Based Search** — Sort pharmacies by real-time distance from user's location
+- [ ] **Pharmacy Dashboard** — React web app for pharmacies to self-manage their inventory
+- [ ] **Razorpay Integration** — Online ordering with commission-based revenue model
+- [ ] **Redis Caching** — Production-grade SOS state persistence and response caching
+
 ## 👥 Authors
 * **Shreyansh Upadhyay** - *Lead Developer / Project Vision* - [@shreyanshuphadhyay10](https://github.com/shreyanshuphadhyay10)
