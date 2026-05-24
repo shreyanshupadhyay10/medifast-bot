@@ -27,6 +27,8 @@ Medical safety note: this bot helps users discover medicine information and phar
 - Store structured conversation memory and semantic memory.
 - Track analytics for searches, retrieval, pharmacy usage, imports, and enrichment.
 - Diagnose whether real medicine and pharmacy datasets are active in production.
+- Activate real data with one command: medicine enrichment, Jaipur OSM import, and demo pharmacy cleanup.
+- Run a lightweight orchestrator that executes existing tools, merges results, and applies safety.
 - Keep deterministic search and safety guardrails as the default.
 
 ## Important Telegram Name Note
@@ -262,6 +264,18 @@ Synonyms live in:
 data/medicineSynonyms.json
 ```
 
+Run medicine enrichment:
+
+```bash
+npm run enrich-medicines
+```
+
+Run full real-data activation:
+
+```bash
+npm run activate-data
+```
+
 Examples:
 
 ```text
@@ -374,6 +388,14 @@ The importer stores source metadata on each pharmacy:
 
 No random website scraping is used.
 
+Real OSM pharmacy data removes the known seeded demo pharmacies during activation/import, so nearby search uses Mongo geospatial results instead of demo examples.
+
+Validate active pharmacy data:
+
+```bash
+npm run diagnose-pharmacies
+```
+
 ### 11. RAG And Semantic Memory
 
 Knowledge files live in:
@@ -411,6 +433,12 @@ Start Chroma locally first if using vector retrieval:
 
 ```bash
 docker run -p 8000:8000 chromadb/chroma
+```
+
+Check RAG status:
+
+```bash
+npm run diagnose-rag
 ```
 
 ### 12. Analytics
@@ -499,6 +527,12 @@ src/
       datasetNormalizer.js
       datasetMerger.js
 
+  orchestrator/
+    orchestrator.js
+    workflowPlanner.js
+    toolExecutor.js
+    responseMerger.js
+
   rag/
     chunker.js
     documentLoader.js
@@ -563,6 +597,11 @@ PHARMACY_IMPORT_CITY=Jaipur
 OVERPASS_URL=https://overpass-api.de/api/interpreter
 
 AI_PROVIDER=deterministic
+LLM_PROVIDER=groq
+GROQ_API_KEY=
+GROQ_MODEL=llama-3.1-8b-instant
+LOCAL_LLM_URL=
+LOCAL_LLM_MODEL=llama3
 AI_DEBUG=false
 
 VECTOR_DB=chroma
@@ -582,6 +621,7 @@ MEDICINE_KNOWLEDGE_CONFIDENCE_THRESHOLD=0.55
 LIVE_MEDICINE_SEMANTIC_MATCHING=true
 MEDICINE_IMPORT_BATCH_SIZE=1000
 MEDICINE_KNOWLEDGE_INDEX_LIMIT=300000
+MEDICINE_ENRICHMENT_LIMIT=5000
 
 SIDE_EFFECTS_AUTO_MERGE_CONFIDENCE=0.8
 SIDE_EFFECTS_UNMATCHED_CONFIDENCE=0.5
@@ -634,6 +674,12 @@ Then:
 npm run ingest
 ```
 
+Check RAG:
+
+```bash
+npm run diagnose-rag
+```
+
 ### 8. Import Jaipur Pharmacies
 
 ```bash
@@ -657,6 +703,7 @@ npm run diagnose-pharmacies
 ```bash
 npm run diagnose-medicines
 npm run diagnose-pharmacies
+npm run diagnose-rag
 ```
 
 ### 10. Start The Bot

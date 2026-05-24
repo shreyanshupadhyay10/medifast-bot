@@ -7,6 +7,8 @@ const { searchMedicineKnowledge } = require("../../medicine/medicineKnowledgeSer
 const { recommendNearbyPharmacies } = require("../../pharmacy/pharmacyRecommendationService");
 const { getSessionLocation } = require("../../pharmacy/pharmacyLocationService");
 const { getCityConfig } = require("../../../config/cities");
+const { getOrCreateProfile } = require("../../services/familyService");
+const { runMediFastWorkflow } = require("../../orchestrator/orchestrator");
 const { escapeHtml } = require("../../utils/formatter");
 const logger = require("../../utils/logger");
 
@@ -253,6 +255,13 @@ const handleAdminDebug = async (ctx, args) => {
     const savedLocation = await getSessionLocation(ctx.from?.id);
     const jaipur = getCityConfig("Jaipur");
     const location = savedLocation || { latitude: jaipur.lat, longitude: jaipur.lng };
+    const profile = await getOrCreateProfile(ctx.from);
+    const workflow = await runMediFastWorkflow({
+      query,
+      profile,
+      telegramId: ctx.from?.id,
+      location,
+    });
     const nearby = await recommendNearbyPharmacies({
       telegramId: ctx.from?.id,
       latitude: location.latitude,
@@ -261,6 +270,7 @@ const handleAdminDebug = async (ctx, args) => {
       medicineKnowledge: medicine,
     });
     const returned = nearby.ranked?.slice(0, 5).map((item) => item.name).join(", ") || "none";
+    const docs = workflow.knowledge?.context?.slice(0, 3).map((item) => item.metadata?.source || item.metadata?.category || "retrieved doc").join(", ") || "none";
 
     await ctx.reply(
       `🧪 <b>Admin Debug</b>\n\n` +
@@ -275,7 +285,11 @@ const handleAdminDebug = async (ctx, args) => {
         `Radius: <b>${nearby.radiusKm} km</b>${nearby.expandedRadius ? " (expanded)" : ""}\n` +
         `Returned pharmacies: <b>${nearby.ranked?.length || 0}</b>\n` +
         `Inventory matches: <b>${nearby.inventoryMatchCount || 0}</b>\n` +
-        `Names: ${escapeHtml(returned)}`,
+        `Names: ${escapeHtml(returned)}\n\n` +
+        `<b>Retrieval</b>\n` +
+        `Docs: ${escapeHtml(docs)}\n` +
+        `Memory hits: <b>${workflow.memory?.length || 0}</b>\n` +
+        `Provider: <b>${escapeHtml(workflow.generated?.provider || "none")}</b>`,
       { parse_mode: "HTML" }
     );
   } catch (error) {

@@ -64,6 +64,11 @@ const registerAnalyticsListener = (eventBus) => {
     record("medicine.import.completed", payload);
   });
 
+  eventBus.on("medicine.knowledge.enrichment.completed", (payload) => {
+    logger.info(`Analytics event medicine.knowledge.enrichment.completed updated=${payload.updated} aliasesAdded=${payload.aliasesAdded}`);
+    record("medicine.knowledge.enrichment.completed", payload);
+  });
+
   eventBus.on("medicine.side_effects.enrichment.completed", (payload) => {
     logger.info(
       `Analytics event medicine.side_effects.enrichment.completed matched=${payload.matchedRecords} unmatched=${payload.unmatchedRecords}`

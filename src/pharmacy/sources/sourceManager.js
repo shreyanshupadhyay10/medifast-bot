@@ -12,6 +12,39 @@ const ensurePharmacyIndexes = async () => {
   await Pharmacy.collection.createIndex({ city: 1, name: 1 });
 };
 
+const SEED_PHARMACY_NAMES = [
+  "Sharma Medical Store",
+  "Jan Aushadhi Kendra",
+  "City Care Pharmacy",
+  "Rajasthan Medicos",
+  "LifeCare 24 Pharmacy",
+  "Apollo Pharmacy",
+  "Gupta Medical Hall",
+  "MedPlus Pharmacy",
+];
+
+const removeSeededDummyPharmacies = async ({ cityName = "Jaipur" } = {}) => {
+  const realCount = await Pharmacy.countDocuments({
+    city: { $regex: `^${cityName}$`, $options: "i" },
+    source: { $ne: "manual" },
+    "location.coordinates.0": { $exists: true },
+    "location.coordinates.1": { $exists: true },
+  });
+  if (!realCount) return { removed: 0, realCount };
+
+  const result = await Pharmacy.deleteMany({
+    city: { $regex: `^${cityName}$`, $options: "i" },
+    source: "manual",
+    name: { $in: SEED_PHARMACY_NAMES },
+    "sourceMetadata.osmId": { $exists: false },
+  });
+
+  return {
+    removed: result.deletedCount || 0,
+    realCount,
+  };
+};
+
 const upsertPharmacies = async (records = []) => {
   if (!records.length) return { imported: 0, upserted: 0, modified: 0 };
 
@@ -55,9 +88,11 @@ const importPharmaciesForCity = async ({ cityName = "Jaipur", fetchImpl, dryRun 
   const validation = validateDataset(normalized);
   const merged = mergeDataset(validation.valid);
   const result = dryRun ? { imported: 0, upserted: 0, modified: 0 } : await upsertPharmacies(merged.records);
+  let seededDummyRemoval = { removed: 0, realCount: 0 };
 
   if (!dryRun) {
     await ensurePharmacyIndexes();
+    seededDummyRemoval = await removeSeededDummyPharmacies({ cityName: city.name });
   }
 
   const summary = {
@@ -78,6 +113,7 @@ const importPharmaciesForCity = async ({ cityName = "Jaipur", fetchImpl, dryRun 
       radiusKm: city.radiusKm,
       validPharmacies: merged.records.length,
     },
+    seededDummyRemoval,
   };
 
   eventBus.emitSafe("pharmacy.import.completed", summary);
@@ -92,5 +128,6 @@ module.exports = {
   ensurePharmacyIndexes,
   identityFor,
   importPharmaciesForCity,
+  removeSeededDummyPharmacies,
   upsertPharmacies,
 };

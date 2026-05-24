@@ -20,6 +20,7 @@ const run = async () => {
   console.log(`Coordinate issues: ${summary.coordinateIssues}`);
   console.log(`Duplicate removals: ${summary.duplicateRemovals}`);
   console.log(`Imported/updated: ${summary.importedPharmacyCount}`);
+  console.log(`Seeded dummy pharmacies removed: ${summary.seededDummyRemoval?.removed || 0}`);
   console.log(`Coverage radius: ${summary.cityCoverage.radiusKm}km`);
 
   process.exit(0);
