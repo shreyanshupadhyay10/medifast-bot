@@ -45,7 +45,8 @@ const run = async () => {
     const metadata = doc.metadata || parseMetadata(doc.pageContent || "", "");
     console.log(`- ${metadata.category}: ${path.basename(metadata.source || "unknown")} [trust=${metadata.trust}]`);
   });
-  console.log(`Saved ${result.count} vector(s) into Chroma collection "${result.collectionName}".`);
+  console.log(`Saved ${result.count} vector(s) into vector collection "${result.collectionName}" [mode=${result.vectorMode}].`);
+  if (result.storagePath) console.log(`Local vector storage: ${result.storagePath}`);
 };
 
 run().catch((error) => {

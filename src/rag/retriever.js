@@ -1,11 +1,21 @@
 const crypto = require("crypto");
 const { ChromaClient } = require("chromadb");
 const { createEmbeddings } = require("./embeddings");
+const { DEFAULT_STORAGE_PATH, getLocalCollection } = require("./localVectorStore");
 const eventBus = require("../events/eventBus");
 const logger = require("../utils/logger");
 
 const DEFAULT_COLLECTION = process.env.CHROMA_KNOWLEDGE_COLLECTION || "medifast_knowledge";
 const DEFAULT_MEMORY_COLLECTION = process.env.CHROMA_MEMORY_COLLECTION || "medifast_memory";
+const DEFAULT_LOCAL_PATH = process.env.CHROMA_LOCAL_PATH || DEFAULT_STORAGE_PATH;
+
+const getVectorMode = () => {
+  if (process.env.VECTOR_MODE === "local") return "local";
+  if (process.env.CHROMA_URL) return "remote";
+  return "local";
+};
+
+const getVectorStoragePath = () => (getVectorMode() === "local" ? DEFAULT_LOCAL_PATH : null);
 
 const createChromaClient = () =>
   (() => {
@@ -18,6 +28,9 @@ const createChromaClient = () =>
   })();
 
 const getCollection = async (name = DEFAULT_COLLECTION) => {
+  if (getVectorMode() === "local") {
+    return getLocalCollection({ name, storagePath: getVectorStoragePath() });
+  }
   const client = createChromaClient();
   return client.getOrCreateCollection({ name });
 };
@@ -45,7 +58,7 @@ const upsertChunks = async (chunks, { collectionName = DEFAULT_COLLECTION } = {}
     metadatas: chunks.map((chunk) => chunk.metadata),
   });
 
-  return { count: chunks.length, collectionName };
+  return { count: chunks.length, collectionName, vectorMode: getVectorMode(), storagePath: getVectorStoragePath() };
 };
 
 const retrieve = async (query, { collectionName = DEFAULT_COLLECTION, k = 4, metadata = {} } = {}) => {
@@ -91,8 +104,11 @@ const retrieve = async (query, { collectionName = DEFAULT_COLLECTION, k = 4, met
 module.exports = {
   DEFAULT_COLLECTION,
   DEFAULT_MEMORY_COLLECTION,
+  DEFAULT_LOCAL_PATH,
   distanceToConfidence,
   getCollection,
+  getVectorMode,
+  getVectorStoragePath,
   retrieve,
   stableId,
   upsertChunks,

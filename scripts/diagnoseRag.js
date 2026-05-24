@@ -11,8 +11,11 @@ const run = async () => {
   console.log(`Knowledge files: ${report.knowledgeFiles}`);
   console.log(`Loaded documents: ${report.loadedDocuments}`);
   console.log(`Chunks: ${report.chunkCount}`);
+  console.log(`Vector mode: ${report.vectorMode}`);
   console.log(`Chroma available: ${report.chromaAvailable}`);
   console.log(`Vector count: ${report.vectorCount}`);
+  console.log(`Collection status: ${report.collectionStatus}`);
+  console.log(`Storage path: ${report.storagePath || "remote Chroma server"}`);
   if (report.vectorError) console.log(`Vector error: ${report.vectorError}`);
   console.log(`Retrieval hits: ${report.retrievalHits}`);
   console.log(`Top confidence: ${report.topConfidence}`);

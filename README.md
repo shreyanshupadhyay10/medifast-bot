@@ -435,6 +435,13 @@ Start Chroma locally first if using vector retrieval:
 docker run -p 8000:8000 chromadb/chroma
 ```
 
+Docker is optional. Without Docker, use embedded local vector storage:
+
+```env
+VECTOR_MODE=local
+CHROMA_LOCAL_PATH=./data/chroma
+```
+
 Check RAG status:
 
 ```bash
@@ -605,7 +612,9 @@ LOCAL_LLM_MODEL=llama3
 AI_DEBUG=false
 
 VECTOR_DB=chroma
+VECTOR_MODE=local
 CHROMA_URL=http://localhost:8000
+CHROMA_LOCAL_PATH=./data/chroma
 CHROMA_KNOWLEDGE_COLLECTION=medifast_knowledge
 CHROMA_MEMORY_COLLECTION=medifast_memory
 
@@ -666,6 +675,13 @@ npm run enrich-side-effects -- "C:\Users\Ruchin Audichya\Desktop\drugs_side_effe
 
 ```bash
 docker run -p 8000:8000 chromadb/chroma
+```
+
+Docker is optional. Without Docker, set:
+
+```env
+VECTOR_MODE=local
+CHROMA_LOCAL_PATH=./data/chroma
 ```
 
 Then:

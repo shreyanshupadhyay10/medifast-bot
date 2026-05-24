@@ -1,6 +1,6 @@
 const { collectKnowledgeFiles, loadKnowledgeBase } = require("./documentLoader");
 const { chunkDocuments } = require("./chunker");
-const { getCollection, DEFAULT_COLLECTION } = require("./retriever");
+const { getCollection, DEFAULT_COLLECTION, getVectorMode, getVectorStoragePath } = require("./retriever");
 const { retrieveKnowledge } = require("../services/ragService");
 const { getRetrievalQualitySummary } = require("./evaluator");
 
@@ -10,12 +10,14 @@ const countVectors = async (collectionName = DEFAULT_COLLECTION) => {
     return {
       available: true,
       vectorCount: await collection.count(),
+      collectionStatus: "ready",
       error: null,
     };
   } catch (error) {
     return {
       available: false,
       vectorCount: 0,
+      collectionStatus: "unavailable",
       error: error.message,
     };
   }
@@ -35,7 +37,10 @@ const diagnoseRag = async ({ query = "fever medicine safety", collectionName = D
     loadedDocuments: documents.length,
     chunkCount: chunks.length,
     chromaAvailable: vector.available,
+    vectorMode: getVectorMode(),
     vectorCount: vector.vectorCount,
+    collectionStatus: vector.collectionStatus,
+    storagePath: getVectorStoragePath(),
     vectorError: vector.error,
     retrievalHits: retrieval.context.length,
     topConfidence: retrieval.confidence,
