@@ -29,6 +29,7 @@ const formatVerifiedTime = (date) => {
 
 const MEDICAL_DISCLAIMER =
   "This bot helps discover medicines and is not a replacement for a doctor.";
+const AI_DEBUG = () => process.env.AI_DEBUG === "true" || process.env.NODE_ENV === "development";
 
 const formatAvailabilityConfidence = (score) => {
   if (score <= 0.18) return "High";
@@ -59,6 +60,7 @@ const formatSearchResults = (results, query, context = {}) => {
   const displayed = results.slice(0, MAX_RESULTS_PER_MESSAGE);
   const hasMore = results.length > MAX_RESULTS_PER_MESSAGE;
   const { intent, mentionedMember, repeatSearch } = context;
+  const routes = context.routes || [];
 
   let message = `🏥 <b>MediFast AI Results</b>\n`;
   message += `Query: <b>${escapeHtml(query)}</b>\n`;
@@ -67,12 +69,25 @@ const formatSearchResults = (results, query, context = {}) => {
     if (intent.confidence) message += ` (${escapeHtml(intent.confidence)} confidence)`;
     message += `\n`;
   }
+  if (context.alias) {
+    const brands = context.alias.brands?.slice(0, 3).join(", ");
+    message += `Matched alias: <i>${escapeHtml(context.alias.salt)}${brands ? ` (${brands})` : ""}</i>\n`;
+  }
   if (mentionedMember) {
     message += `For: <b>${escapeHtml(mentionedMember.name)}</b> (${escapeHtml(mentionedMember.ageGroup)})\n`;
   }
   message += `Found <b>${results.length}</b> live match${results.length !== 1 ? "es" : ""}\n`;
   if (repeatSearch?.topMedicineName) {
     message += `\n🔁 Need to reorder previous medicine: <b>${escapeHtml(repeatSearch.topMedicineName)}</b>?\n`;
+  }
+  if (routes.length) {
+    message += `AI route: ${routes.slice(0, 3).map((route) => `${route.tool} ${Math.round(route.confidence * 100)}%`).join(" · ")}\n`;
+  }
+  if (context.aiContext?.answer) {
+    message += `Context: <i>${escapeHtml(context.aiContext.answer).slice(0, 350)}</i>\n`;
+  }
+  if (context.aiContext?.lowConfidence) {
+    message += `Clarification: <i>I could not confidently retrieve trusted knowledge for this part yet.</i>\n`;
   }
   message += `\n`;
 
@@ -115,6 +130,31 @@ const formatSearchResults = (results, query, context = {}) => {
 
   if (intent?.safetyNote) {
     message += `\n⚕️ <i>${escapeHtml(intent.safetyNote)}</i>\n`;
+  }
+  if (context.safety?.notes?.length) {
+    const uniqueSafetyNotes = context.safety.notes.filter((note) => note !== MEDICAL_DISCLAIMER);
+    if (uniqueSafetyNotes.length) {
+      message += uniqueSafetyNotes.map((note) => `⚠️ <i>${escapeHtml(note)}</i>`).join("\n");
+      message += `\n`;
+    }
+  }
+
+  if (AI_DEBUG()) {
+    const entities = context.entities || {};
+    const docs = context.aiContext?.context || [];
+    const memory = context.aiContext?.memory || [];
+    message += `\n<pre>AI DEBUG\n`;
+    message += `Entities: ${escapeHtml(JSON.stringify({
+      person: entities.person,
+      symptom: entities.symptom,
+      medicine: entities.medicine,
+      duration: entities.duration,
+      reorderIntent: entities.reorderIntent,
+    }))}\n`;
+    message += `Router: ${escapeHtml((routes || []).map((route) => `${route.tool}:${route.confidence}`).join(", "))}\n`;
+    message += `Retrieved docs: ${escapeHtml(docs.map((doc) => doc.metadata?.source || doc.metadata?.category || "unknown").join(", ") || "none")}\n`;
+    message += `Memory: ${escapeHtml(memory.map((fact) => `${fact.entity}:${fact.value}`).join(", ") || "none")}\n`;
+    message += `</pre>\n`;
   }
 
   message += `\n💡 <i>Stock info may change. Call ahead to confirm.</i>\n`;

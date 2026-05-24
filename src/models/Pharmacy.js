@@ -18,6 +18,10 @@ const pharmacySchema = new mongoose.Schema(
       required: [true, "Full address is required"],
       trim: true,
     },
+    phone: {
+      type: String,
+      trim: true,
+    },
     contact: {
       phone: { type: String, trim: true },
       whatsapp: { type: String, trim: true },
@@ -31,6 +35,37 @@ const pharmacySchema = new mongoose.Schema(
       coordinates: {
         type: [Number],
       },
+    },
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+      },
+      coordinates: {
+        type: [Number],
+      },
+    },
+    city: {
+      type: String,
+      trim: true,
+      default: "Jaipur",
+      index: true,
+    },
+    inventory: [{ type: String, trim: true }],
+    confidence: {
+      type: Number,
+      min: 0,
+      max: 1,
+      default: 0.75,
+    },
+    source: {
+      type: String,
+      trim: true,
+      default: "manual",
+    },
+    lastVerified: {
+      type: Date,
+      default: Date.now,
     },
     openingHours: {
       type: String,
@@ -52,5 +87,23 @@ const pharmacySchema = new mongoose.Schema(
 
 // Sparse index — skips docs where geoLocation is not set
 pharmacySchema.index({ geoLocation: "2dsphere" }, { sparse: true });
+pharmacySchema.index({ location: "2dsphere" }, { sparse: true });
+
+pharmacySchema.pre("save", function syncLocationFields(next) {
+  if (!this.phone && this.contact?.phone) this.phone = this.contact.phone;
+  if (!this.location?.coordinates?.length && this.geoLocation?.coordinates?.length) {
+    this.location = {
+      type: "Point",
+      coordinates: this.geoLocation.coordinates,
+    };
+  }
+  if (!this.geoLocation?.coordinates?.length && this.location?.coordinates?.length) {
+    this.geoLocation = {
+      type: "Point",
+      coordinates: this.location.coordinates,
+    };
+  }
+  next();
+});
 
 module.exports = mongoose.model("Pharmacy", pharmacySchema);

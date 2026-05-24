@@ -1,5 +1,6 @@
 const SearchHistory = require("../models/SearchHistory");
 const { normalizeQuery } = require("./intentEngine");
+const eventBus = require("../events/eventBus");
 
 const REORDER_WINDOW_DAYS = 45;
 
@@ -36,6 +37,10 @@ const recordSearch = async ({
   });
 };
 
+const emitSearchCompleted = (payload) => {
+  eventBus.emitSafe("search.completed", payload);
+};
+
 const getRecentForFamilyMember = async (telegramId, familyMemberName) => {
   if (!telegramId || !familyMemberName) return null;
 
@@ -51,5 +56,6 @@ const getRecentForFamilyMember = async (telegramId, familyMemberName) => {
 module.exports = {
   getRecentForFamilyMember,
   getRecentRepeat,
+  emitSearchCompleted,
   recordSearch,
 };

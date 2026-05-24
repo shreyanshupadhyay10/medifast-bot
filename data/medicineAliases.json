@@ -1,0 +1,66 @@
+[
+  {
+    "salt": "Modafinil",
+    "brands": ["Modalert", "Modvigil", "Modawake"],
+    "company": "Sun Pharma",
+    "commonSpellings": ["moda alert", "mod alert", "modafinil", "modafinil tablet"],
+    "category": "neurological",
+    "rxRequired": true
+  },
+  {
+    "salt": "Paracetamol",
+    "brands": ["Dolo 650", "Calpol", "Crocin", "Pacimol"],
+    "company": "Common India brands",
+    "commonSpellings": ["dolo", "crocin", "calpol", "pcm", "paracitamol", "fever tablet"],
+    "category": "painkiller",
+    "rxRequired": false
+  },
+  {
+    "salt": "Pantoprazole",
+    "brands": ["Pan 40", "Pantocid", "Pantozol"],
+    "company": "Common India brands",
+    "commonSpellings": ["pan40", "pan 40", "pantop", "acidity tablet", "gas tablet"],
+    "category": "gastro",
+    "rxRequired": false
+  },
+  {
+    "salt": "Omeprazole",
+    "brands": ["Omez", "Ocid", "Omee"],
+    "company": "Common India brands",
+    "commonSpellings": ["omez", "omep", "acidity medicine"],
+    "category": "gastro",
+    "rxRequired": false
+  },
+  {
+    "salt": "Azithromycin",
+    "brands": ["Azee", "Azithral", "Zithromax"],
+    "company": "Common India brands",
+    "commonSpellings": ["azee", "azithral", "azithro"],
+    "category": "antibiotic",
+    "rxRequired": true
+  },
+  {
+    "salt": "Cetirizine",
+    "brands": ["Cetzine", "Okacet", "Alerid"],
+    "company": "Common India brands",
+    "commonSpellings": ["cetrizine", "cetirizine", "allergy tablet", "cold tablet"],
+    "category": "respiratory",
+    "rxRequired": false
+  },
+  {
+    "salt": "Ondansetron",
+    "brands": ["Emeset", "Ondem", "Vomikind"],
+    "company": "Common India brands",
+    "commonSpellings": ["emeset", "ondem", "vomiting tablet", "ulti medicine"],
+    "category": "gastro",
+    "rxRequired": false
+  },
+  {
+    "salt": "Ivabradine",
+    "brands": ["Ivabrad", "Ivabid", "Coralan"],
+    "company": "Common India brands",
+    "commonSpellings": ["ivak", "ivabradine", "ivabrad", "ivabid"],
+    "category": "cardiac",
+    "rxRequired": true
+  }
+]

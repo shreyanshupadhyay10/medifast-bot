@@ -16,15 +16,23 @@ const {
   handleUpdateStock,
   handleOpenSos,
   handleStats,
+  handleAnalytics,
 } = require("./commands/admin");
 const { isAdmin } = require("./middleware/adminGuard");
 const { rateLimiter } = require("./middleware/rateLimiter");
 const { formatWelcome, formatHelp } = require("../utils/formatter");
 const { setLanguage } = require("../services/familyService");
+const eventBus = require("../events/eventBus");
+const { registerAnalyticsListener } = require("../events/listeners/analyticsListener");
+const { registerGuardianAlertListener } = require("../events/listeners/guardianAlertListener");
+const { registerSearchHistoryListener } = require("../events/listeners/searchHistoryListener");
 const logger = require("../utils/logger");
 
 const createBot = () => {
   const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN);
+  registerSearchHistoryListener(eventBus);
+  registerGuardianAlertListener(eventBus, bot);
+  registerAnalyticsListener(eventBus);
 
   // ── Global Middleware ─────────────────────────────────────────────────────
   bot.use(rateLimiter);
@@ -44,6 +52,7 @@ const createBot = () => {
             { text: "👨‍👩‍👧 Add Family", callback_data: "family:add" },
             { text: "🔍 Search Medicine", callback_data: "prompt_search" },
           ],
+          [{ text: "📍 Enable Nearby", callback_data: "nearby:open" }],
         ],
       },
     });
@@ -119,6 +128,7 @@ const createBot = () => {
 
   bot.command("opensos", isAdmin, handleOpenSos);
   bot.command("stats", isAdmin, handleStats);
+  bot.command("analytics", isAdmin, handleAnalytics);
 
   // ── Inline Button Callbacks ───────────────────────────────────────────────
   bot.callbackQuery(/^sos:(.+)$/, async (ctx) => {
@@ -139,7 +149,15 @@ const createBot = () => {
     await setLanguage(ctx.from, language);
     await ctx.answerCallbackQuery("Saved");
     await ctx.reply(
-      `✅ Language saved: ${language}\n\nType a medicine or symptom now. Example: bukhar ki tablet`
+      `✅ Language saved: ${language}\n\nShare location for nearby pharmacies, or type a medicine/symptom now. Example: bukhar ki tablet`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📍 Enable Nearby", callback_data: "nearby:open" }],
+            [{ text: "👨‍👩‍👧 Add Family Later", callback_data: "family:open" }],
+          ],
+        },
+      }
     );
   });
 
