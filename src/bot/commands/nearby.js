@@ -7,6 +7,9 @@ const eventBus = require("../../events/eventBus");
 const { escapeHtml } = require("../../utils/formatter");
 const logger = require("../../utils/logger");
 
+const realPharmacyDataExists = async () =>
+  Pharmacy.exists({ isActive: true, source: { $ne: "manual" }, "location.coordinates.0": { $exists: true } });
+
 // Jaipur areas we cover
 const JAIPUR_AREAS = [
   "Mansarovar",
@@ -87,7 +90,7 @@ const handleLocation = async (ctx) => {
             return `${index + 1}. <b>${escapeHtml(pharmacy.name)}</b>\n   📍 ${escapeHtml(pharmacy.address)}\n   Distance: <b>${escapeHtml(pharmacy.distance)}</b> · Score: <b>${pharmacy.score}</b>${phone}`;
           })
           .join("\n\n")
-      : "We received your location and the architecture is ready for Google Maps, pharmacy APIs, and live stock integrations.";
+      : "No nearby pharmacies found for this location.";
 
     await ctx.reply(
       `📍 <b>${escapeHtml(recommendation.ranked?.length ? `Found ${recommendation.ranked.length} pharmacy option(s) within ${recommendation.radiusKm} km.` : readiness.message)}</b>\n\n` +
@@ -164,9 +167,11 @@ const handleAreaSelection = async (ctx, area) => {
   await ctx.replyWithChatAction("typing");
 
   try {
+    const useRealDataOnly = await realPharmacyDataExists();
     const pharmacies = await Pharmacy.find({
       area: { $regex: area, $options: "i" },
       isActive: true,
+      ...(useRealDataOnly ? { source: { $ne: "manual" } } : {}),
     }).lean();
 
     if (pharmacies.length === 0) {

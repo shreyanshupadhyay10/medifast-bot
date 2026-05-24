@@ -17,6 +17,7 @@ const {
   handleOpenSos,
   handleStats,
   handleAnalytics,
+  handleAdminDebug,
 } = require("./commands/admin");
 const { isAdmin } = require("./middleware/adminGuard");
 const { rateLimiter } = require("./middleware/rateLimiter");
@@ -129,6 +130,9 @@ const createBot = () => {
   bot.command("opensos", isAdmin, handleOpenSos);
   bot.command("stats", isAdmin, handleStats);
   bot.command("analytics", isAdmin, handleAnalytics);
+  bot.command("admindebug", isAdmin, async (ctx) => {
+    await handleAdminDebug(ctx, ctx.match?.trim());
+  });
 
   // ── Inline Button Callbacks ───────────────────────────────────────────────
   bot.callbackQuery(/^sos:(.+)$/, async (ctx) => {

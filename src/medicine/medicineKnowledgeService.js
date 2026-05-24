@@ -13,6 +13,8 @@ const searchMedicineKnowledge = async ({ query, records = null }) => {
       query,
       confidence: normalized.confidence,
       reason: normalized.reason,
+      method: normalized.method,
+      usedSemantic: normalized.usedSemantic,
     });
     return {
       medicine: null,
@@ -44,6 +46,9 @@ const searchMedicineKnowledge = async ({ query, records = null }) => {
     normalizedQuery: normalized.normalizedQuery,
     confidence: normalized.confidence,
     type: normalized.type,
+    method: normalized.method,
+    reason: normalized.reason,
+    usedSemantic: normalized.usedSemantic,
     brandToGeneric: normalized.reason === "curated alias" || Boolean(medicine?.brands?.length),
     relationshipCount: relationships.length,
   });

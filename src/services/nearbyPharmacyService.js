@@ -45,7 +45,9 @@ const getNearbyPharmacyReadiness = async ({ latitude, longitude }) => {
     providersReady: ["Google Maps", "pharmacy inventory APIs", "live stock partners"],
     message: nearby.pharmacies.length
       ? `Found ${nearby.pharmacies.length} pharmacy option(s) within ${nearby.radiusKm} km.`
-      : "Nearby pharmacy module ready for integration.",
+      : geoIndexedPharmacies > 0
+        ? "No nearby pharmacies found for this location."
+        : "Nearby pharmacy module ready for integration.",
   };
 };
 

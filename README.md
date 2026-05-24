@@ -26,6 +26,7 @@ Medical safety note: this bot helps users discover medicine information and phar
 - Run RAG over trusted knowledge files using Chroma.
 - Store structured conversation memory and semantic memory.
 - Track analytics for searches, retrieval, pharmacy usage, imports, and enrichment.
+- Diagnose whether real medicine and pharmacy datasets are active in production.
 - Keep deterministic search and safety guardrails as the default.
 
 ## Important Telegram Name Note
@@ -422,6 +423,8 @@ Tracks:
 - latest pharmacy import
 - duplicate pharmacy removals
 - coordinate issues
+- medicine normalization confidence distribution
+- top unknown medicine queries
 
 ## Project Structure
 
@@ -562,6 +565,7 @@ RETRIEVAL_CATEGORY_WEIGHT=0.10
 RETRIEVAL_CONFIDENCE_THRESHOLD=0.45
 
 MEDICINE_KNOWLEDGE_CONFIDENCE_THRESHOLD=0.55
+LIVE_MEDICINE_SEMANTIC_MATCHING=true
 MEDICINE_IMPORT_BATCH_SIZE=1000
 MEDICINE_KNOWLEDGE_INDEX_LIMIT=300000
 
@@ -590,6 +594,12 @@ npm run seed
 
 ```bash
 npm run import-medicines -- "C:\Users\Ruchin Audichya\Desktop\Indian-Medicine-Dataset-main\DATA\indian_medicine_data.csv"
+```
+
+Validate the imported medicine knowledge:
+
+```bash
+npm run diagnose-medicines
 ```
 
 ### 6. Enrich Side Effects
@@ -622,7 +632,20 @@ For another city:
 npm run import-pharmacies -- Delhi
 ```
 
-### 9. Start The Bot
+Validate active pharmacy data:
+
+```bash
+npm run diagnose-pharmacies
+```
+
+### 9. Run Production Diagnostics
+
+```bash
+npm run diagnose-medicines
+npm run diagnose-pharmacies
+```
+
+### 10. Start The Bot
 
 ```bash
 npm start
@@ -647,6 +670,7 @@ npm run dev
 /removeMember Papa
 /sos rare medicine name
 /analytics
+/admindebug Dolo near me
 ```
 
 Natural examples:
@@ -705,6 +729,8 @@ Current coverage includes:
 - medicine search fallback
 - medicine import mapping
 - medicine matcher
+- medicine knowledge diagnostics
+- pharmacy diagnostics
 - semantic matching
 - side-effect enrichment
 - RAG chunking and retrieval scoring

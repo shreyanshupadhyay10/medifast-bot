@@ -2,6 +2,7 @@ const Fuse = require("fuse.js");
 const MedicineKnowledge = require("../models/MedicineKnowledge");
 const { expandMedicineQuery } = require("../services/medicineAliasService");
 const { normalizeQuery } = require("../services/intentEngine");
+const { buildMedicineMatcherIndex, matchMedicine } = require("./matching/medicineMatcher");
 
 const CATEGORY_ALIASES = {
   "sugar medicine": "antidiabetic",
@@ -118,6 +119,7 @@ const createKnowledgeIndex = (records = []) => {
   const indexedRecords = records.map((record) => ({ ...record, searchText: buildSearchText(record) }));
   return {
     records: indexedRecords,
+    matcher: buildMedicineMatcherIndex(indexedRecords),
     fuse: new Fuse(indexedRecords, {
       keys: ["searchText"],
       includeScore: true,
@@ -186,6 +188,31 @@ const normalizeMedicineQuery = async (query, { records = null } = {}) => {
     };
   }
 
+  const matcherResult = await matchMedicine(
+    {
+      medicineName: query,
+      genericName: query,
+      brands: [query],
+    },
+    index.matcher,
+    {
+      useFuzzy: true,
+      useSemantic: process.env.LIVE_MEDICINE_SEMANTIC_MATCHING === "true",
+    }
+  );
+
+  if (matcherResult.confidence >= 0.55 && matcherResult.medicines[0]) {
+    return {
+      type: "medicine",
+      normalizedQuery: matcherResult.medicines[0].genericName || matcherResult.medicines[0].medicineName,
+      medicine: matcherResult.medicines[0],
+      confidence: matcherResult.confidence,
+      reason: matcherResult.reason,
+      method: matcherResult.method,
+      usedSemantic: matcherResult.usedSemantic,
+    };
+  }
+
   const [best] = index.fuse.search(query);
   if (!best) {
     return {
@@ -212,6 +239,7 @@ const normalizeMedicineQuery = async (query, { records = null } = {}) => {
     medicine: best.item,
     confidence,
     reason: "knowledge fuzzy match",
+    method: "fuse",
   };
 };
 

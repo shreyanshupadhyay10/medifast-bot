@@ -3,6 +3,10 @@ const Inventory = require("../../models/Inventory");
 const SosRequest = require("../../models/SosRequest");
 const { getOpenSosRequests } = require("../../services/searchService");
 const { getAnalyticsSummary } = require("../../services/analyticsService");
+const { searchMedicineKnowledge } = require("../../medicine/medicineKnowledgeService");
+const { recommendNearbyPharmacies } = require("../../pharmacy/pharmacyRecommendationService");
+const { getSessionLocation } = require("../../pharmacy/pharmacyLocationService");
+const { getCityConfig } = require("../../../config/cities");
 const { escapeHtml } = require("../../utils/formatter");
 const logger = require("../../utils/logger");
 
@@ -22,7 +26,8 @@ const handleAdminMenu = async (ctx) => {
       `/closesos &lt;id&gt; — Close an SOS request\n\n` +
       `<b>Stats:</b>\n` +
       `/stats — Database statistics\n` +
-      `/analytics — Product analytics`,
+      `/analytics — Product analytics\n` +
+      `/admindebug &lt;query&gt; — Trace medicine + nearby matching`,
     { parse_mode: "HTML" }
   );
 };
@@ -241,6 +246,44 @@ const handleStats = async (ctx) => {
   }
 };
 
+const handleAdminDebug = async (ctx, args) => {
+  const query = args?.trim() || "Dolo near me";
+  try {
+    const medicine = await searchMedicineKnowledge({ query });
+    const savedLocation = await getSessionLocation(ctx.from?.id);
+    const jaipur = getCityConfig("Jaipur");
+    const location = savedLocation || { latitude: jaipur.lat, longitude: jaipur.lng };
+    const nearby = await recommendNearbyPharmacies({
+      telegramId: ctx.from?.id,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      medicineQuery: query,
+      medicineKnowledge: medicine,
+    });
+    const returned = nearby.ranked?.slice(0, 5).map((item) => item.name).join(", ") || "none";
+
+    await ctx.reply(
+      `🧪 <b>Admin Debug</b>\n\n` +
+        `Query: <code>${escapeHtml(query)}</code>\n\n` +
+        `<b>Medicine matched</b>\n` +
+        `Name: <b>${escapeHtml(medicine.medicine?.genericName || medicine.medicine?.medicineName || "none")}</b>\n` +
+        `Confidence: <b>${Number(medicine.confidence || 0).toFixed(2)}</b>\n` +
+        `Message: ${escapeHtml(medicine.message || "matched")}\n\n` +
+        `<b>Nearby</b>\n` +
+        `Source: <b>Mongo Geo</b>\n` +
+        `Location: <b>${savedLocation ? "saved Telegram location" : "Jaipur default"}</b>\n` +
+        `Radius: <b>${nearby.radiusKm} km</b>${nearby.expandedRadius ? " (expanded)" : ""}\n` +
+        `Returned pharmacies: <b>${nearby.ranked?.length || 0}</b>\n` +
+        `Inventory matches: <b>${nearby.inventoryMatchCount || 0}</b>\n` +
+        `Names: ${escapeHtml(returned)}`,
+      { parse_mode: "HTML" }
+    );
+  } catch (error) {
+    logger.error(`Admin debug error: ${error.message}`);
+    await ctx.reply(`⚠️ Debug failed: ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
+  }
+};
+
 const formatTopList = (items, emptyText) => {
   if (!items?.length) return emptyText;
   return items.map((item, index) => `${index + 1}. ${escapeHtml(item.name || item.query || item.status)} — <b>${item.count}</b>`).join("\n");
@@ -291,4 +334,5 @@ module.exports = {
   handleOpenSos,
   handleStats,
   handleAnalytics,
+  handleAdminDebug,
 };
