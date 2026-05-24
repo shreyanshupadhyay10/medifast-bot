@@ -44,6 +44,13 @@ const registerAnalyticsListener = (eventBus) => {
     record("retrieval.completed", { type, query, hitCount, error });
   });
 
+  eventBus.on("orchestration.completed", (payload) => {
+    logger.info(
+      `Analytics event orchestration.completed tools=${payload.toolCount || 0} provider=${payload.provider || "unknown"} latency=${payload.orchestrationLatencyMs || 0}ms`
+    );
+    record("orchestration.completed", payload);
+  });
+
   eventBus.on("medicine.lookup.failed", ({ telegramId, query, normalizedQuery, intentKey }) => {
     logger.info(`Analytics event medicine.lookup.failed user=${telegramId} query="${normalizedQuery || query}"`);
     record("medicine.lookup.failed", { telegramId, query, normalizedQuery, intentKey });

@@ -20,6 +20,9 @@ const {
 } = require("../../utils/formatter");
 const logger = require("../../utils/logger");
 
+const isGreeting = (text = "") =>
+  /^(hi|hello|hey|namaste|namaskar|ji|haan|han|yes|yo|hii|helo)$/i.test(String(text).trim());
+
 /**
  * Handles /search <medicine> command and plain text messages.
  * @param {import("grammy").Context} ctx
@@ -29,6 +32,13 @@ const handleSearch = async (ctx, query) => {
   if (!query || query.trim().length < 2) {
     return ctx.reply(
       "Please provide a medicine name.\nExample: /search Paracetamol",
+      { parse_mode: "HTML" }
+    );
+  }
+
+  if (isGreeting(query)) {
+    return ctx.reply(
+      "Hi, I am MediFast AI. Send a medicine name like <code>Dolo 650</code>, a symptom like <code>bukhar ki tablet</code>, or use /nearby to find pharmacies.",
       { parse_mode: "HTML" }
     );
   }
@@ -45,14 +55,6 @@ const handleSearch = async (ctx, query) => {
     const mentionedMember = findMentionedFamilyMember(profile, query);
     const safety = assessSafety({ entities, intent, mentionedMember, query });
     const userLocation = await getSessionLocation(ctx.from.id);
-    const workflow = await runMediFastWorkflow({
-      query,
-      profile,
-      telegramId: ctx.from.id,
-      location: userLocation,
-      intent,
-      mentionedMember,
-    });
 
     if (/\b(reorder|repeat|refill|phir se|dobara)\b/i.test(query) && mentionedMember) {
       const recent = await getRecentForFamilyMember(ctx.from.id, mentionedMember.name);
@@ -172,13 +174,27 @@ const handleSearch = async (ctx, query) => {
     }
 
     const needsContext = routes.some((route) => route.tool === "rag" || route.tool === "memory");
+    const workflow = needsContext
+      ? await runMediFastWorkflow({
+          query,
+          profile,
+          telegramId: ctx.from.id,
+          location: userLocation,
+          intent,
+          mentionedMember,
+        })
+      : null;
     const aiContext = needsContext
       ? {
-          answer: workflow.generated?.text || (await answerFromKnowledgeBase(query, { telegramId: String(ctx.from.id), memoryId: memory?._id?.toString() })).answer,
+          answer: workflow?.generated?.text || "",
           sources: workflow.knowledge?.sources || [],
           memory: workflow.memory || [],
           context: workflow.knowledge?.context || [],
           confidence: workflow.knowledge?.confidence || 0,
+          lowConfidence: workflow.knowledge?.confidence ? workflow.knowledge.confidence < Number(process.env.RETRIEVAL_CONFIDENCE_THRESHOLD || 0.45) : false,
+          evidence: workflow.evidence,
+          toolSequence: workflow.debug?.toolSequence || [],
+          providerLatencyMs: workflow.debug?.providerLatencyMs || 0,
           status: "orchestrated",
         }
       : null;

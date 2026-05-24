@@ -36,6 +36,8 @@ const getAnalyticsSummary = async () => {
     locationPermissionAccepted,
     pharmacyRankingUsage,
     latestPharmacyImport,
+    orchestrationStats,
+    providerStats,
   ] = await Promise.all([
     aggregateTop("topMedicineName"),
     aggregateTop("intentKey"),
@@ -112,6 +114,26 @@ const getAnalyticsSummary = async () => {
     AnalyticsEvent.countDocuments({ eventType: "location.permission.accepted" }),
     AnalyticsEvent.countDocuments({ eventType: "pharmacy.ranking.completed" }),
     AnalyticsEvent.findOne({ eventType: "pharmacy.import.completed" }).sort({ createdAt: -1 }).lean(),
+    AnalyticsEvent.aggregate([
+      { $match: { eventType: "orchestration.completed" } },
+      {
+        $group: {
+          _id: null,
+          workflows: { $sum: 1 },
+          failedWorkflows: { $sum: { $cond: ["$metadata.failedWorkflow", 1, 0] } },
+          avgToolCount: { $avg: "$metadata.toolCount" },
+          avgEvidenceSize: { $avg: "$metadata.evidenceSize" },
+          avgProviderLatencyMs: { $avg: "$metadata.providerLatencyMs" },
+          avgOrchestrationLatencyMs: { $avg: "$metadata.orchestrationLatencyMs" },
+        },
+      },
+      { $project: { _id: 0 } },
+    ]),
+    AnalyticsEvent.aggregate([
+      { $match: { eventType: "orchestration.completed" } },
+      { $group: { _id: "$metadata.provider", count: { $sum: 1 }, avgLatencyMs: { $avg: "$metadata.providerLatencyMs" } } },
+      { $project: { provider: "$_id", count: 1, avgLatencyMs: 1, _id: 0 } },
+    ]),
   ]);
 
   return {
@@ -151,6 +173,15 @@ const getAnalyticsSummary = async () => {
       pharmacyRankingUsage,
       latestImport: latestPharmacyImport?.metadata || null,
     },
+    orchestration: orchestrationStats[0] || {
+      workflows: 0,
+      failedWorkflows: 0,
+      avgToolCount: 0,
+      avgEvidenceSize: 0,
+      avgProviderLatencyMs: 0,
+      avgOrchestrationLatencyMs: 0,
+    },
+    providerStats,
   };
 };
 

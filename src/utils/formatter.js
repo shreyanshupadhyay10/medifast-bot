@@ -143,6 +143,9 @@ const formatSearchResults = (results, query, context = {}) => {
     const entities = context.entities || {};
     const docs = context.aiContext?.context || [];
     const memory = context.aiContext?.memory || [];
+    const evidence = context.aiContext?.evidence || {};
+    const pharmacies = evidence.pharmacyContext?.pharmacies || [];
+    const toolSequence = context.aiContext?.toolSequence || [];
     message += `\n<pre>AI DEBUG\n`;
     message += `Entities: ${escapeHtml(JSON.stringify({
       person: entities.person,
@@ -152,8 +155,16 @@ const formatSearchResults = (results, query, context = {}) => {
       reorderIntent: entities.reorderIntent,
     }))}\n`;
     message += `Router: ${escapeHtml((routes || []).map((route) => `${route.tool}:${route.confidence}`).join(", "))}\n`;
+    message += `Medicine: ${escapeHtml(JSON.stringify({
+      name: evidence.medicineContext?.medicine?.genericName || evidence.medicineContext?.medicine?.medicineName,
+      confidence: evidence.confidenceScores?.medicine,
+    }))}\n`;
     message += `Retrieved docs: ${escapeHtml(docs.map((doc) => doc.metadata?.source || doc.metadata?.category || "unknown").join(", ") || "none")}\n`;
     message += `Memory: ${escapeHtml(memory.map((fact) => `${fact.entity}:${fact.value}`).join(", ") || "none")}\n`;
+    message += `Pharmacies: ${escapeHtml(pharmacies.map((item) => item.name).join(", ") || "none")}\n`;
+    message += `Confidence: ${escapeHtml(JSON.stringify(evidence.confidenceScores || {}))}\n`;
+    message += `Tool sequence: ${escapeHtml(toolSequence.join(" -> ") || "none")}\n`;
+    message += `Provider latency: ${escapeHtml(String(context.aiContext?.providerLatencyMs || 0))}ms\n`;
     message += `</pre>\n`;
   }
 

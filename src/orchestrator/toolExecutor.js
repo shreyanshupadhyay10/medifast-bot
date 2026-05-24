@@ -18,18 +18,23 @@ const safeExecute = async (toolName, payload) => {
 
 const executeWorkflowTools = async ({ plan, telegramId, profile }) => {
   const results = {};
+  const executionTrace = [];
 
   if (plan.execute.family) {
     results.family = { ok: true, value: profile };
+    executionTrace.push({ tool: "family", ok: true });
   }
   if (plan.execute.medicine) {
     results.medicineKnowledge = await safeExecute("searchMedicineKnowledge", { query: plan.query });
+    executionTrace.push({ tool: "searchMedicineKnowledge", ok: results.medicineKnowledge.ok !== false });
   }
   if (plan.execute.memory && telegramId) {
     results.memory = await safeExecute("retrieveRelevantMemory", { telegramId: String(telegramId), query: plan.query });
+    executionTrace.push({ tool: "retrieveRelevantMemory", ok: results.memory.ok !== false });
   }
   if (plan.execute.rag) {
     results.knowledge = await safeExecute("retrieveKnowledge", { question: plan.query });
+    executionTrace.push({ tool: "retrieveKnowledge", ok: results.knowledge.ok !== false });
   }
   if (plan.execute.nearby) {
     results.nearby = await safeExecute("recommendNearbyPharmacies", {
@@ -39,8 +44,10 @@ const executeWorkflowTools = async ({ plan, telegramId, profile }) => {
       medicineQuery: plan.query,
       medicineKnowledge: results.medicineKnowledge?.value,
     });
+    executionTrace.push({ tool: "recommendNearbyPharmacies", ok: results.nearby.ok !== false });
   }
 
+  results.__trace = executionTrace;
   return results;
 };
 

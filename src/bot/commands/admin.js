@@ -330,6 +330,11 @@ const handleAnalytics = async (ctx) => {
         `Ranking Runs: <b>${analytics.pharmacyIntelligence.pharmacyRankingUsage}</b>\n` +
         `Inventory Matches: <b>${analytics.pharmacyIntelligence.inventoryMatches}</b>\n` +
         `Expanded Searches: <b>${analytics.pharmacyIntelligence.expandedSearches}</b>\n\n` +
+        `<b>LLM Orchestration</b>\n` +
+        `Workflows: <b>${analytics.orchestration.workflows}</b>\n` +
+        `Failed Workflows: <b>${analytics.orchestration.failedWorkflows}</b>\n` +
+        `Avg Tools: <b>${Number(analytics.orchestration.avgToolCount || 0).toFixed(1)}</b>\n` +
+        `Avg Provider Latency: <b>${Math.round(analytics.orchestration.avgProviderLatencyMs || 0)}ms</b>\n\n` +
         `👨‍👩‍👧 Family Profiles: <b>${analytics.familyProfiles}</b>\n` +
         `📍 Geo-ready Pharmacies: <b>${analytics.geoReadyPharmacies}</b>`,
       { parse_mode: "HTML" }

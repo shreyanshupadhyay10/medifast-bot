@@ -25,6 +25,7 @@ Medical safety note: this bot helps users discover medicine information and phar
 - Store unmatched/low-confidence enrichment rows separately for review.
 - Run RAG over trusted knowledge files using Chroma.
 - Store structured conversation memory and semantic memory.
+- Synthesize answers with an evidence-only Groq/Llama provider. The LLM is not the medical source of truth.
 - Track analytics for searches, retrieval, pharmacy usage, imports, and enrichment.
 - Diagnose whether real medicine and pharmacy datasets are active in production.
 - Activate real data with one command: medicine enrichment, Jaipur OSM import, and demo pharmacy cleanup.
@@ -61,6 +62,30 @@ Example:
 ```
 
 This keeps the current system fast and deterministic, while making future LangChain or open-source LLM orchestration easier.
+
+### Evidence-Based LLM Orchestration
+
+MediFast can use Groq with Llama 4 Scout for response synthesis:
+
+```env
+LLM_PROVIDER=groq
+ENABLE_LLM_SYNTHESIS=false
+GROQ_API_KEY=
+GROQ_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+GROQ_TIMEOUT_MS=4500
+```
+
+The LLM receives only structured evidence from deterministic tools:
+
+- medicine knowledge and relationship graph matches
+- semantic memory facts
+- RAG retrieval snippets and source metadata
+- nearby pharmacy rankings from Mongo geospatial search
+- confidence scores and safety flags
+
+It must not invent medicines, pharmacy availability, side effects, or dosages. If confidence is low, it asks for clarification.
+
+For the fastest Telegram demo, keep `ENABLE_LLM_SYNTHESIS=false`. This still runs routing, medicine knowledge, RAG retrieval, semantic memory, and pharmacy intelligence, but skips LLM response text in normal searches. Turn it on only when you want evidence-based answer synthesis.
 
 ### 2. Entity Extraction
 
@@ -605,8 +630,10 @@ OVERPASS_URL=https://overpass-api.de/api/interpreter
 
 AI_PROVIDER=deterministic
 LLM_PROVIDER=groq
+ENABLE_LLM_SYNTHESIS=false
 GROQ_API_KEY=
-GROQ_MODEL=llama-3.1-8b-instant
+GROQ_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+GROQ_TIMEOUT_MS=4500
 LOCAL_LLM_URL=
 LOCAL_LLM_MODEL=llama3
 AI_DEBUG=false
