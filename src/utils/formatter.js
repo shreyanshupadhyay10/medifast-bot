@@ -76,7 +76,11 @@ const formatSearchResults = (results, query, context = {}) => {
   if (mentionedMember) {
     message += `For: <b>${escapeHtml(mentionedMember.name)}</b> (${escapeHtml(mentionedMember.ageGroup)})\n`;
   }
-  message += `Found <b>${results.length}</b> live match${results.length !== 1 ? "es" : ""}\n`;
+  const knowledgeOnlyCount = results.filter((item) => item.knowledgeOnly).length;
+  const liveCount = results.length - knowledgeOnlyCount;
+  message += knowledgeOnlyCount && !liveCount
+    ? `Found <b>${results.length}</b> medicine knowledge match${results.length !== 1 ? "es" : ""}\n`
+    : `Found <b>${results.length}</b> live match${results.length !== 1 ? "es" : ""}\n`;
   if (repeatSearch?.topMedicineName) {
     message += `\n🔁 Need to reorder previous medicine: <b>${escapeHtml(repeatSearch.topMedicineName)}</b>?\n`;
   }
@@ -92,7 +96,7 @@ const formatSearchResults = (results, query, context = {}) => {
   message += `\n`;
 
   displayed.forEach((item, index) => {
-    const stockEmoji = item.inStock ? "✅" : "❌";
+    const stockEmoji = item.knowledgeOnly ? "📘" : item.inStock ? "✅" : "❌";
     const rareTag = item.isRare ? " 🔴 <b>[RARE]</b>" : "";
     const rxTag = item.requiresPrescription ? " 📋 <i>Rx required</i>" : "";
 
@@ -107,8 +111,13 @@ const formatSearchResults = (results, query, context = {}) => {
       message += `   Brand/alternative: ${escapeHtml(item.brand)}\n`;
     }
 
-    message += `   💊 ${formatPrice(item.price, item.unit)}${rxTag}\n`;
-    message += `   Confidence: ${formatAvailabilityConfidence(item.matchScore)}\n`;
+    if (item.knowledgeOnly) {
+      message += `   Availability: <i>Known medicine, live stock not confirmed yet</i>${rxTag}\n`;
+      message += `   Confidence: Knowledge match\n`;
+    } else {
+      message += `   💊 ${formatPrice(item.price, item.unit)}${rxTag}\n`;
+      message += `   Confidence: ${formatAvailabilityConfidence(item.matchScore)}\n`;
+    }
     message += `   🏪 <b>${escapeHtml(item.pharmacy.name)}</b> — ${escapeHtml(item.pharmacy.area)}\n`;
     message += `   📍 ${escapeHtml(item.pharmacy.address)}\n`;
 
@@ -119,8 +128,10 @@ const formatSearchResults = (results, query, context = {}) => {
       message += `   💬 WhatsApp: ${escapeHtml(item.pharmacy.whatsapp)}\n`;
     }
 
-    message += `   🕐 ${escapeHtml(item.pharmacy.hours)}\n`;
-    message += `   🔄 Verified: ${formatVerifiedTime(item.lastVerified)}\n`;
+    if (!item.knowledgeOnly) {
+      message += `   🕐 ${escapeHtml(item.pharmacy.hours)}\n`;
+      message += `   🔄 Verified: ${formatVerifiedTime(item.lastVerified)}\n`;
+    }
     message += `\n`;
   });
 

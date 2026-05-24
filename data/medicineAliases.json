@@ -62,5 +62,29 @@
     "commonSpellings": ["ivak", "ivabradine", "ivabrad", "ivabid"],
     "category": "cardiac",
     "rxRequired": true
+  },
+  {
+    "salt": "Pregabalin",
+    "brands": ["Pregabalin", "Lyrica", "Pregalin", "Maxgalin"],
+    "company": "Common India brands",
+    "commonSpellings": ["pregabalin", "pregabaline", "pregalin", "lyrica", "maxgalin"],
+    "category": "neurological",
+    "rxRequired": true
+  },
+  {
+    "salt": "Alprazolam",
+    "brands": ["Alprax", "Alprazolam"],
+    "company": "Common India brands",
+    "commonSpellings": ["alprax", "alprazolam", "alprox", "alprx"],
+    "category": "neurological",
+    "rxRequired": true
+  },
+  {
+    "salt": "Clonazepam",
+    "brands": ["Clonazepam", "Clonotril"],
+    "company": "Common India brands",
+    "commonSpellings": ["clonazepam", "clonazapam", "clonazpam", "clonotril"],
+    "category": "neurological",
+    "rxRequired": true
   }
 ]

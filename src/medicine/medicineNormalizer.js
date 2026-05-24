@@ -151,6 +151,26 @@ const getMedicineKnowledgeIndex = async () => {
   return medicineKnowledgeIndex;
 };
 
+const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const findDirectMedicineMatch = async (query) => {
+  const normalized = String(query || "").trim();
+  if (!normalized || normalized.length < 2) return null;
+  const exact = new RegExp(`^${escapeRegex(normalized)}$`, "i");
+  return MedicineKnowledge.findOne({
+    $or: [
+      { medicineName: exact },
+      { genericName: exact },
+      { salts: exact },
+      { brands: exact },
+      { aliases: exact },
+      { commonSpellings: exact },
+    ],
+  })
+    .sort({ confidence: -1, sourceKind: -1, updatedAt: -1 })
+    .lean();
+};
+
 const normalizeMedicineQuery = async (query, { records = null } = {}) => {
   const normalized = normalizeQuery(query);
   const categoryMatch = Object.entries(CATEGORY_ALIASES).find(([term]) => normalized.includes(term));
@@ -178,6 +198,20 @@ const normalizeMedicineQuery = async (query, { records = null } = {}) => {
     };
   }
 
+  if (!records) {
+    const directMatch = await findDirectMedicineMatch(query);
+    if (directMatch) {
+      return {
+        type: "medicine",
+        normalizedQuery: directMatch.genericName || directMatch.medicineName,
+        medicine: directMatch,
+        confidence: 0.96,
+        reason: "direct knowledge match",
+        method: "mongo-direct",
+      };
+    }
+  }
+
   const index = records ? createKnowledgeIndex(records) : await getMedicineKnowledgeIndex();
   if (!index.records.length) {
     return {
@@ -197,7 +231,9 @@ const normalizeMedicineQuery = async (query, { records = null } = {}) => {
     index.matcher,
     {
       useFuzzy: true,
-      useSemantic: process.env.LIVE_MEDICINE_SEMANTIC_MATCHING === "true",
+      useSemantic:
+        process.env.LIVE_MEDICINE_SEMANTIC_MATCHING === "true" &&
+        process.env.ENABLE_SLOW_SEMANTIC_MATCHING === "true",
     }
   );
 
@@ -250,6 +286,7 @@ module.exports = {
   canonicalizeSideEffects,
   clearMedicineKnowledgeIndex,
   emptyToNull,
+  findDirectMedicineMatch,
   medicineKeyFor,
   normalizeMedicineQuery,
   normalizeMedicineRecord,

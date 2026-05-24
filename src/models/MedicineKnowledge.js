@@ -110,6 +110,11 @@ const medicineKnowledgeSchema = new mongoose.Schema(
       default: "unknown",
       index: true,
     },
+    sourceKind: {
+      type: String,
+      trim: true,
+      index: true,
+    },
     sourceMetadata: {
       type: sourceMetadataSchema,
       default: () => ({}),

@@ -33,12 +33,16 @@ const loadSources = (root = SOURCE_ROOT) =>
     const rawRecords = readSourceFile(filePath);
     const headers = rawRecords[0] ? Object.keys(rawRecords[0]) : [];
     const fieldMap = detectFieldMap(headers);
+    const isCoreCatalog = path.basename(filePath).toLowerCase().includes("core-india-medicines");
     return {
       filePath,
       sourceName: path.basename(filePath),
       fieldMap,
       records: rawRecords.map((record) => ({
         ...mapRecordFields(record, fieldMap),
+        sourceKind: record.sourceKind || (isCoreCatalog ? "product_catalog" : undefined),
+        trustLevel: record.trustLevel || (isCoreCatalog ? "curated" : undefined),
+        confidence: record.confidence || (isCoreCatalog ? 0.95 : undefined),
         source: path.basename(filePath),
       })),
     };

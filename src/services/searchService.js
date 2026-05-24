@@ -1,7 +1,10 @@
 const Fuse = require("fuse.js");
 const Inventory = require("../models/Inventory");
+require("../models/Pharmacy");
 const SosRequest = require("../models/SosRequest");
 const medicineCache = require("../cache/medicineCache");
+const { searchMedicineKnowledge } = require("../medicine/medicineKnowledgeService");
+const { expandMedicineQuery } = require("./medicineAliasService");
 const logger = require("../utils/logger");
 
 // Fuse.js configuration for fuzzy medicine name search
@@ -18,6 +21,9 @@ const FUSE_OPTIONS = {
   shouldSort: true,
   ignoreLocation: true,
 };
+
+const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const liveInventorySearchEnabled = () => process.env.ENABLE_LIVE_INVENTORY_SEARCH === "true";
 
 /**
  * Search for medicines across all pharmacies.
@@ -58,6 +64,98 @@ const mapInventoryResult = (item, score = 0.5) => ({
   },
 });
 
+const CATEGORY_MAP = {
+  "pain/fever": "painkiller",
+  "mental health": "neurological",
+  neurology: "neurological",
+  antibiotic: "antibiotic",
+  acidity: "gastro",
+  allergy: "respiratory",
+  "cough/cold": "respiratory",
+  diabetes: "antidiabetic",
+  "blood pressure": "cardiac",
+  cholesterol: "cardiac",
+  nausea: "gastro",
+};
+
+const normalizeCategory = (category = "other") =>
+  CATEGORY_MAP[String(category).toLowerCase()] || String(category || "other").toLowerCase();
+
+const chooseDisplayName = (medicine = {}, query = "") => {
+  const normalizedQuery = query.toLowerCase().trim();
+  const candidates = [
+    medicine.medicineName,
+    ...(medicine.brands || []),
+    ...(medicine.aliases || []),
+    ...(medicine.commonSpellings || []),
+    medicine.genericName,
+  ].filter(Boolean);
+  return (
+    candidates.find((name) => String(name).toLowerCase() === normalizedQuery) ||
+    candidates.find((name) => String(name).toLowerCase().includes(normalizedQuery) || normalizedQuery.includes(String(name).toLowerCase())) ||
+    medicine.genericName ||
+    medicine.medicineName ||
+    query
+  );
+};
+
+const mapKnowledgeResult = (knowledge, query) => {
+  const medicine = knowledge?.medicine;
+  if (!medicine) return null;
+  const displayName = chooseDisplayName(medicine, query);
+  const brand = medicine.brands?.find((name) => name === displayName) || medicine.brands?.[0] || medicine.medicineName;
+  return {
+    id: `knowledge:${medicine._id || medicine.knowledgeKey || medicine.genericName || query}`,
+    medicineName: displayName,
+    genericName: medicine.genericName || medicine.salts?.[0] || null,
+    brand,
+    price: null,
+    unit: "knowledge",
+    inStock: false,
+    quantity: null,
+    requiresPrescription: Boolean(medicine.prescriptionRequired),
+    isRare: false,
+    category: normalizeCategory(medicine.category),
+    lastVerified: medicine.updatedAt || medicine.sourceMetadata?.importedAt || null,
+    matchScore: Math.max(0.05, 1 - (knowledge.confidence || medicine.confidence || 0.75)),
+    knowledgeOnly: true,
+    alternatives: knowledge.alternatives || [],
+    pharmacy: {
+      id: "knowledge",
+      name: "Medicine knowledge match",
+      area: "No live pharmacy stock confirmed",
+      address: "Use Nearby Pharmacy to check stores around you.",
+      phone: null,
+      whatsapp: null,
+      hours: "Knowledge only",
+    },
+  };
+};
+
+const searchKnowledgeFallback = async (query) => {
+  try {
+    const aliasExpansion = expandMedicineQuery(query);
+    if (aliasExpansion.alias) {
+      const aliasMedicine = {
+        medicineName: aliasExpansion.alias.brands?.[0] || aliasExpansion.alias.salt,
+        genericName: aliasExpansion.alias.salt,
+        brands: aliasExpansion.alias.brands || [],
+        aliases: aliasExpansion.alias.commonSpellings || [],
+        category: aliasExpansion.alias.category,
+        prescriptionRequired: Boolean(aliasExpansion.alias.rxRequired),
+        confidence: 0.9,
+      };
+      return [mapKnowledgeResult({ medicine: aliasMedicine, confidence: 0.9, alternatives: [] }, query)];
+    }
+    const knowledge = await searchMedicineKnowledge({ query });
+    const result = mapKnowledgeResult(knowledge, query);
+    return result ? [result] : [];
+  } catch (error) {
+    logger.warn(`Medicine knowledge fallback failed: ${error.message}`);
+    return [];
+  }
+};
+
 const searchMedicine = async (query, options = {}) => {
   if (!query || query.trim().length < 2) {
     return { results: [], sos: false, query };
@@ -69,19 +167,52 @@ const searchMedicine = async (query, options = {}) => {
   const cached = medicineCache.get(trimmedQuery, { searchTerms, categories });
   if (cached) return { ...cached, cacheHit: true };
 
-  // Fetch all inventory items with pharmacy details
-  // For scale, add a pre-filter using MongoDB text index first
-  const allInventory = await Inventory.find({ inStock: true })
+  if (!liveInventorySearchEnabled()) {
+    const knowledgeResults = await searchKnowledgeFallback(trimmedQuery);
+    return medicineCache.set(trimmedQuery, { searchTerms, categories }, {
+      results: knowledgeResults,
+      sos: knowledgeResults.length === 0,
+      knowledgeOnly: knowledgeResults.length > 0,
+      query: trimmedQuery,
+    });
+  }
+
+  const inventoryLimit = Number(process.env.SEARCH_INVENTORY_PREFILTER_LIMIT || 250);
+  const textSearch = searchTerms
+    .map((term) => String(term || "").trim())
+    .filter((term) => term.length >= 2)
+    .slice(0, 8)
+    .join(" ");
+  const inventoryFilter = {
+    inStock: true,
+    ...(textSearch || categories.length
+      ? {
+          $or: [
+            ...(textSearch ? [{ $text: { $search: textSearch } }] : []),
+            ...(categories.length ? [{ category: { $in: categories } }] : []),
+          ],
+        }
+      : {}),
+  };
+
+  const candidateInventory = await Inventory.find(inventoryFilter)
+    .limit(inventoryLimit)
     .populate("pharmacy", "name area address contact openingHours is24x7 isActive")
     .lean();
 
   // Filter out entries where pharmacy is inactive
-  const activeInventory = allInventory.filter(
+  const activeInventory = candidateInventory.filter(
     (item) => item.pharmacy && item.pharmacy.isActive
   );
 
   if (activeInventory.length === 0) {
-    return medicineCache.set(trimmedQuery, { searchTerms, categories }, { results: [], sos: false, query: trimmedQuery });
+    const knowledgeResults = await searchKnowledgeFallback(trimmedQuery);
+    return medicineCache.set(trimmedQuery, { searchTerms, categories }, {
+      results: knowledgeResults,
+      sos: knowledgeResults.length === 0,
+      knowledgeOnly: knowledgeResults.length > 0,
+      query: trimmedQuery,
+    });
   }
 
   // Run Fuse.js fuzzy search
@@ -102,6 +233,16 @@ const searchMedicine = async (query, options = {}) => {
   const combinedResults = uniqueById([...fuseResults, ...categoryResults]);
 
   if (combinedResults.length === 0) {
+    const knowledgeResults = await searchKnowledgeFallback(trimmedQuery);
+    if (knowledgeResults.length > 0) {
+      return medicineCache.set(trimmedQuery, { searchTerms, categories }, {
+        results: knowledgeResults,
+        sos: false,
+        knowledgeOnly: true,
+        query: trimmedQuery,
+      });
+    }
+
     // No match found — check if this is a known rare medicine
     const rareMatch = await Inventory.findOne({
       isRare: true,
