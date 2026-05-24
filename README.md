@@ -17,6 +17,8 @@ Medical safety note: this bot helps users discover medicine information and phar
 - Suggest repeat/reorder flows using recent search history.
 - Use Telegram shared location to find nearby pharmacies.
 - Rank pharmacies by distance, inventory match, and confidence.
+- Import Jaipur pharmacy POIs from OpenStreetMap into MongoDB.
+- Expand the same pharmacy import system to Delhi, Mumbai, Kota, and more cities.
 - Keep medicine inventory separate from medicine knowledge.
 - Import large Indian medicine datasets into MongoDB.
 - Enrich medicine records with side-effect data from trusted CSV files.
@@ -307,7 +309,57 @@ The response shows:
 - phone
 - address
 
-### 10. RAG And Semantic Memory
+### 10. Jaipur Pharmacy Auto Import
+
+The bot can now build its own Jaipur pharmacy database from OpenStreetMap POIs.
+
+Flow:
+
+```text
+OpenStreetMap Overpass API
+-> pharmacy POIs around Jaipur
+-> validation
+-> normalization
+-> duplicate removal
+-> MongoDB Pharmacy collection
+-> 2dsphere index
+-> analytics event
+```
+
+Default city config lives in:
+
+```text
+config/cities.js
+```
+
+Run Jaipur import:
+
+```bash
+npm run import-pharmacies
+```
+
+Import another supported city:
+
+```bash
+npm run import-pharmacies -- Delhi
+npm run import-pharmacies -- Mumbai
+npm run import-pharmacies -- Kota
+```
+
+The importer stores source metadata on each pharmacy:
+
+```js
+{
+  source: "OpenStreetMap",
+  importedAt: Date,
+  trustLevel: "medium",
+  datasetVersion: "..."
+}
+```
+
+No random website scraping is used.
+
+### 11. RAG And Semantic Memory
 
 Knowledge files live in:
 
@@ -346,7 +398,7 @@ Start Chroma locally first if using vector retrieval:
 docker run -p 8000:8000 chromadb/chroma
 ```
 
-### 11. Analytics
+### 12. Analytics
 
 Admin command:
 
@@ -367,6 +419,9 @@ Tracks:
 - location permissions
 - pharmacy ranking usage
 - inventory matches
+- latest pharmacy import
+- duplicate pharmacy removals
+- coordinate issues
 
 ## Project Structure
 
@@ -420,6 +475,12 @@ src/
     pharmacyRankingService.js
     pharmacyRecommendationService.js
     pharmacySearchService.js
+    sources/
+      sourceManager.js
+      osmPharmacySource.js
+      datasetValidator.js
+      datasetNormalizer.js
+      datasetMerger.js
 
   rag/
     chunker.js
@@ -481,6 +542,8 @@ PORT=3001
 NEARBY_RADIUS_KM=5
 NEARBY_MAX_RADIUS_KM=10
 NEARBY_MIN_RESULTS=3
+PHARMACY_IMPORT_CITY=Jaipur
+OVERPASS_URL=https://overpass-api.de/api/interpreter
 
 AI_PROVIDER=deterministic
 AI_DEBUG=false
@@ -547,7 +610,19 @@ Then:
 npm run ingest
 ```
 
-### 8. Start The Bot
+### 8. Import Jaipur Pharmacies
+
+```bash
+npm run import-pharmacies
+```
+
+For another city:
+
+```bash
+npm run import-pharmacies -- Delhi
+```
+
+### 9. Start The Bot
 
 ```bash
 npm start
@@ -636,6 +711,8 @@ Current coverage includes:
 - pharmacy location handling
 - pharmacy ranking
 - nearby workflow formatting
+- OpenStreetMap pharmacy source parsing
+- pharmacy import normalization and deduplication
 
 ## Medical Safety
 

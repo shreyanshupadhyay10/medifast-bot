@@ -35,6 +35,7 @@ const getAnalyticsSummary = async () => {
     pharmacySearchStats,
     locationPermissionAccepted,
     pharmacyRankingUsage,
+    latestPharmacyImport,
   ] = await Promise.all([
     aggregateTop("topMedicineName"),
     aggregateTop("intentKey"),
@@ -110,6 +111,7 @@ const getAnalyticsSummary = async () => {
     ]),
     AnalyticsEvent.countDocuments({ eventType: "location.permission.accepted" }),
     AnalyticsEvent.countDocuments({ eventType: "pharmacy.ranking.completed" }),
+    AnalyticsEvent.findOne({ eventType: "pharmacy.import.completed" }).sort({ createdAt: -1 }).lean(),
   ]);
 
   return {
@@ -147,6 +149,7 @@ const getAnalyticsSummary = async () => {
       }),
       locationPermissionAccepted,
       pharmacyRankingUsage,
+      latestImport: latestPharmacyImport?.metadata || null,
     },
   };
 };

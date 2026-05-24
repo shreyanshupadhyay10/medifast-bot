@@ -70,6 +70,13 @@ const registerAnalyticsListener = (eventBus) => {
     );
     record("medicine.side_effects.enrichment.completed", payload);
   });
+
+  eventBus.on("pharmacy.import.completed", (payload) => {
+    logger.info(
+      `Analytics event pharmacy.import.completed city=${payload.city} imported=${payload.importedPharmacyCount} duplicates=${payload.duplicateRemovals}`
+    );
+    record("pharmacy.import.completed", payload);
+  });
 };
 
 module.exports = {

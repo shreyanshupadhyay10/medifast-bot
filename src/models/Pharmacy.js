@@ -63,6 +63,14 @@ const pharmacySchema = new mongoose.Schema(
       trim: true,
       default: "manual",
     },
+    sourceMetadata: {
+      source: { type: String, trim: true },
+      importedAt: Date,
+      trustLevel: { type: String, trim: true },
+      datasetVersion: { type: String, trim: true },
+      osmType: { type: String, trim: true },
+      osmId: { type: String, trim: true, index: true },
+    },
     lastVerified: {
       type: Date,
       default: Date.now,

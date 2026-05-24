@@ -9,6 +9,7 @@
     "seed": "node scripts/seed.js",
     "ingest": "node scripts/ingestKnowledge.js",
     "import-medicines": "node scripts/importMedicines.js",
+    "import-pharmacies": "node scripts/importPharmacies.js",
     "enrich-side-effects": "node scripts/enrichSideEffects.js",
     "test": "node --test"
   },
