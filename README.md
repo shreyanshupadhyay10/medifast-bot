@@ -192,6 +192,20 @@ Then run:
 npm run import-medicines
 ```
 
+This repo also includes a curated general medicine pack:
+
+```text
+data/medicine-sources/general-essential-india-2026.json
+```
+
+It adds common India-first medicine names, salts, brands, spellings, and aliases across fever/pain, allergy/cold, cough, gastro, diabetes, BP/cardiac, antibiotics, dermatology, vitamins, eye/ear, women's health, and neurological categories.
+
+Import only this pack:
+
+```bash
+npm run import-medicines -- data/medicine-sources/general-essential-india-2026.json
+```
+
 ### 7. Side-Effects Enrichment
 
 The side-effects enrichment pipeline uses a trusted CSV and merges side-effect text into existing `MedicineKnowledge` records.
