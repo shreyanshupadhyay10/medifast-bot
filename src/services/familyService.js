@@ -76,7 +76,7 @@ const parseFamilyMemberInput = (input) => {
 
   if (parts.length < 3) return null;
 
-  const [name, relation, ageGroup, notes] = parts;
+  const [name, relation, ageGroup, notes, guardianTelegramId, guardianName] = parts;
   const normalizedAge = normalizeQuery(ageGroup);
   const safeAgeGroup = ["child", "adult", "senior"].includes(normalizedAge)
     ? normalizedAge
@@ -87,6 +87,9 @@ const parseFamilyMemberInput = (input) => {
     relation,
     ageGroup: safeAgeGroup,
     notes: notes || undefined,
+    guardianTelegramId: guardianTelegramId || undefined,
+    guardianName: guardianName || undefined,
+    notifyGuardian: Boolean(guardianTelegramId),
   };
 };
 

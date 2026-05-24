@@ -25,6 +25,19 @@ const familyMemberSchema = new mongoose.Schema(
       trim: true,
       maxlength: 180,
     },
+    guardianName: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+    },
+    guardianTelegramId: {
+      type: String,
+      trim: true,
+    },
+    notifyGuardian: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
@@ -53,6 +66,24 @@ const userProfileSchema = new mongoose.Schema(
     onboardingCompleted: {
       type: Boolean,
       default: false,
+    },
+    locationPermissionAccepted: {
+      type: Boolean,
+      default: false,
+    },
+    homeLocation: {
+      type: {
+        type: String,
+        enum: ["Point"],
+      },
+      coordinates: {
+        type: [Number],
+      },
+      label: {
+        type: String,
+        trim: true,
+      },
+      updatedAt: Date,
     },
     familyMembers: [familyMemberSchema],
   },

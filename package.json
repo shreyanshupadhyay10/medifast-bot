@@ -1,24 +1,34 @@
 {
-  "name": "jaipur-pharmacy-bot",
+  "name": "medifast-ai-bot",
   "version": "1.0.0",
-  "description": "Hyperlocal Telegram bot for medicine availability in Jaipur",
+  "description": "India-first AI-ready medicine assistant for Telegram",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed": "node scripts/seed.js",
-    "test": "echo \"No tests yet\" && exit 0"
+    "ingest": "node scripts/ingestKnowledge.js",
+    "import-medicines": "node scripts/importMedicines.js",
+    "enrich-side-effects": "node scripts/enrichSideEffects.js",
+    "test": "node --test"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "mongoose": "^8.0.3",
-    "grammy": "^1.21.1",
-    "fuse.js": "^7.0.0",
-    "dotenv": "^16.3.1",
+    "@langchain/community": "^1.1.28",
+    "@langchain/core": "^1.1.48",
+    "@langchain/textsplitters": "^1.0.1",
+    "@xenova/transformers": "^2.17.2",
     "axios": "^1.6.2",
+    "chromadb": "^3.4.3",
     "cors": "^2.8.5",
-    "helmet": "^7.1.0",
+    "csv-parse": "^6.2.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
+    "fuse.js": "^7.0.0",
+    "grammy": "^1.21.1",
+    "helmet": "^7.1.0",
+    "mongoose": "^8.0.3",
+    "pdf-parse": "^2.4.5",
     "winston": "^3.11.0"
   },
   "devDependencies": {

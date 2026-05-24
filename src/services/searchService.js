@@ -1,6 +1,7 @@
 const Fuse = require("fuse.js");
 const Inventory = require("../models/Inventory");
 const SosRequest = require("../models/SosRequest");
+const medicineCache = require("../cache/medicineCache");
 const logger = require("../utils/logger");
 
 // Fuse.js configuration for fuzzy medicine name search
@@ -65,6 +66,8 @@ const searchMedicine = async (query, options = {}) => {
   const trimmedQuery = query.trim();
   const searchTerms = [trimmedQuery, ...(options.searchTerms || [])].filter(Boolean);
   const categories = options.categories || [];
+  const cached = medicineCache.get(trimmedQuery, { searchTerms, categories });
+  if (cached) return { ...cached, cacheHit: true };
 
   // Fetch all inventory items with pharmacy details
   // For scale, add a pre-filter using MongoDB text index first
@@ -78,7 +81,7 @@ const searchMedicine = async (query, options = {}) => {
   );
 
   if (activeInventory.length === 0) {
-    return { results: [], sos: false, query: trimmedQuery };
+    return medicineCache.set(trimmedQuery, { searchTerms, categories }, { results: [], sos: false, query: trimmedQuery });
   }
 
   // Run Fuse.js fuzzy search
@@ -105,12 +108,12 @@ const searchMedicine = async (query, options = {}) => {
       medicineNameLower: { $regex: trimmedQuery.toLowerCase(), $options: "i" },
     });
 
-    return {
+    return medicineCache.set(trimmedQuery, { searchTerms, categories }, {
       results: [],
       sos: true, // trigger SOS flow
       isRare: !!rareMatch,
       query: trimmedQuery,
-    };
+    });
   }
 
   // Map to clean result objects
@@ -121,12 +124,12 @@ const searchMedicine = async (query, options = {}) => {
   // Check if any result is a rare medicine
   const hasRare = results.some((r) => r.isRare);
 
-  return {
+  return medicineCache.set(trimmedQuery, { searchTerms, categories }, {
     results,
     sos: results.length === 0,
     hasRare,
     query: trimmedQuery,
-  };
+  });
 };
 
 /**

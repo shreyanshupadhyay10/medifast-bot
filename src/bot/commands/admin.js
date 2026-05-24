@@ -2,6 +2,7 @@ const Pharmacy = require("../../models/Pharmacy");
 const Inventory = require("../../models/Inventory");
 const SosRequest = require("../../models/SosRequest");
 const { getOpenSosRequests } = require("../../services/searchService");
+const { getAnalyticsSummary } = require("../../services/analyticsService");
 const { escapeHtml } = require("../../utils/formatter");
 const logger = require("../../utils/logger");
 
@@ -20,7 +21,8 @@ const handleAdminMenu = async (ctx) => {
       `/opensos — View all open SOS requests\n` +
       `/closesos &lt;id&gt; — Close an SOS request\n\n` +
       `<b>Stats:</b>\n` +
-      `/stats — Database statistics`,
+      `/stats — Database statistics\n` +
+      `/analytics — Product analytics`,
     { parse_mode: "HTML" }
   );
 };
@@ -216,25 +218,68 @@ const handleOpenSos = async (ctx) => {
  */
 const handleStats = async (ctx) => {
   try {
-    const [pharmacies, medicines, inStock, openSos] = await Promise.all([
-      Pharmacy.countDocuments({ isActive: true }),
+    const [analytics, medicines, openSos] = await Promise.all([
+      getAnalyticsSummary(),
       Inventory.countDocuments(),
-      Inventory.countDocuments({ inStock: true }),
       SosRequest.countDocuments({ status: "open" }),
     ]);
 
     await ctx.reply(
       `📊 <b>Database Stats</b>\n\n` +
-        `🏪 Active Pharmacies: <b>${pharmacies}</b>\n` +
+        `🏪 Active Pharmacies: <b>${analytics.activePharmacies}</b>\n` +
+        `📍 Geo-ready Pharmacies: <b>${analytics.geoReadyPharmacies}</b>\n` +
         `💊 Total Medicines Tracked: <b>${medicines}</b>\n` +
-        `✅ In Stock: <b>${inStock}</b>\n` +
-        `❌ Out of Stock: <b>${medicines - inStock}</b>\n` +
+        `✅ In Stock: <b>${analytics.medicinesInStock}</b>\n` +
+        `❌ Out of Stock: <b>${medicines - analytics.medicinesInStock}</b>\n` +
+        `👨‍👩‍👧 Family Profiles: <b>${analytics.familyProfiles}</b>\n` +
         `🆘 Open SOS Requests: <b>${openSos}</b>`,
       { parse_mode: "HTML" }
     );
   } catch (error) {
     logger.error(`Stats error: ${error.message}`);
     await ctx.reply("⚠️ Could not fetch stats.");
+  }
+};
+
+const formatTopList = (items, emptyText) => {
+  if (!items?.length) return emptyText;
+  return items.map((item, index) => `${index + 1}. ${escapeHtml(item.name || item.query || item.status)} — <b>${item.count}</b>`).join("\n");
+};
+
+const handleAnalytics = async (ctx) => {
+  try {
+    const analytics = await getAnalyticsSummary();
+    await ctx.reply(
+      `📈 <b>MediFast Analytics</b>\n\n` +
+        `<b>Top Medicines</b>\n${formatTopList(analytics.topMedicines, "No medicine searches yet.")}\n\n` +
+        `<b>Top Symptom Intents</b>\n${formatTopList(analytics.topSymptoms, "No symptom searches yet.")}\n\n` +
+        `<b>Repeat Searches</b>\n${formatTopList(analytics.repeatSearches, "No repeat searches yet.")}\n\n` +
+        `<b>SOS Trends</b>\n${formatTopList(analytics.sosTrends, "No SOS data yet.")}\n\n` +
+        `<b>Vector Retrieval</b>\n` +
+        `Retrieval Events: <b>${analytics.retrievalCount}</b>\n` +
+        `Vector Searches: <b>${analytics.vectorSearches}</b>\n` +
+        `Keyword Searches: <b>${analytics.keywordSearches}</b>\n` +
+        `Hybrid Searches: <b>${analytics.hybridSearches}</b>\n` +
+        `Memory Hits: <b>${analytics.memoryHits}</b>\n` +
+        `Knowledge Hits: <b>${analytics.knowledgeHits}</b>\n\n` +
+        `Failed Medicine Lookups: <b>${analytics.failedMedicineLookups}</b>\n\n` +
+        `<b>Medicine Knowledge</b>\n` +
+        `Normalization Hits: <b>${analytics.normalizationHits}</b>\n` +
+        `Unknown Knowledge Searches: <b>${analytics.unknownMedicineKnowledgeSearches}</b>\n` +
+        `Last Import Count: <b>${analytics.latestMedicineImport?.importedMedicineCount || 0}</b>\n\n` +
+        `<b>Pharmacy Intelligence</b>\n` +
+        `Nearby Searches: <b>${analytics.pharmacyIntelligence.nearbySearches}</b>\n` +
+        `Location Permissions: <b>${analytics.pharmacyIntelligence.locationPermissionAccepted}</b>\n` +
+        `Ranking Runs: <b>${analytics.pharmacyIntelligence.pharmacyRankingUsage}</b>\n` +
+        `Inventory Matches: <b>${analytics.pharmacyIntelligence.inventoryMatches}</b>\n` +
+        `Expanded Searches: <b>${analytics.pharmacyIntelligence.expandedSearches}</b>\n\n` +
+        `👨‍👩‍👧 Family Profiles: <b>${analytics.familyProfiles}</b>\n` +
+        `📍 Geo-ready Pharmacies: <b>${analytics.geoReadyPharmacies}</b>`,
+      { parse_mode: "HTML" }
+    );
+  } catch (error) {
+    logger.error(`Analytics error: ${error.message}`);
+    await ctx.reply("⚠️ Could not fetch analytics.");
   }
 };
 
@@ -245,4 +290,5 @@ module.exports = {
   handleUpdateStock,
   handleOpenSos,
   handleStats,
+  handleAnalytics,
 };

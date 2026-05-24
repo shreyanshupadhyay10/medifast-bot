@@ -1,6 +1,9 @@
 const Pharmacy = require("../../models/Pharmacy");
 const Inventory = require("../../models/Inventory");
 const { getNearbyPharmacyReadiness } = require("../../services/nearbyPharmacyService");
+const { recommendNearbyPharmacies } = require("../../pharmacy/pharmacyRecommendationService");
+const { saveSessionLocation, shareLocationKeyboard } = require("../../pharmacy/pharmacyLocationService");
+const eventBus = require("../../events/eventBus");
 const { escapeHtml } = require("../../utils/formatter");
 const logger = require("../../utils/logger");
 
@@ -38,11 +41,7 @@ const handleNearby = async (ctx) => {
     "📍 <b>Nearby Pharmacies</b>\n\nShare location for live nearby matching, or browse by Jaipur area:",
     {
       parse_mode: "HTML",
-      reply_markup: {
-        keyboard: [[{ text: "📍 Share Location", request_location: true }]],
-        resize_keyboard: true,
-        one_time_keyboard: true,
-      },
+      reply_markup: shareLocationKeyboard(),
     }
   );
 
@@ -57,17 +56,46 @@ const handleLocation = async (ctx) => {
   if (!location) return;
 
   try {
+    await saveSessionLocation({
+      telegramId: ctx.from?.id,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      persistHome: true,
+    });
+    eventBus.emitSafe("location.permission.accepted", {
+      telegramId: ctx.from?.id,
+    });
+    const recommendation = await recommendNearbyPharmacies({
+      telegramId: ctx.from?.id,
+      latitude: location.latitude,
+      longitude: location.longitude,
+    });
     const readiness = await getNearbyPharmacyReadiness({
       latitude: location.latitude,
       longitude: location.longitude,
     });
+    eventBus.emitSafe("nearby.completed", {
+      telegramId: ctx.from?.id,
+      resultCount: recommendation.ranked?.length || 0,
+      radiusKm: recommendation.radiusKm,
+    });
+
+    const nearbyList = recommendation.ranked?.length
+      ? recommendation.ranked
+          .map((pharmacy, index) => {
+            const phone = pharmacy.phone ? `\n   📞 ${escapeHtml(pharmacy.phone)}` : "";
+            return `${index + 1}. <b>${escapeHtml(pharmacy.name)}</b>\n   📍 ${escapeHtml(pharmacy.address)}\n   Distance: <b>${escapeHtml(pharmacy.distance)}</b> · Score: <b>${pharmacy.score}</b>${phone}`;
+          })
+          .join("\n\n")
+      : "We received your location and the architecture is ready for Google Maps, pharmacy APIs, and live stock integrations.";
 
     await ctx.reply(
-      `📍 <b>${escapeHtml(readiness.message)}</b>\n\n` +
-        `We received your location and the architecture is ready for Google Maps, pharmacy APIs, and live stock integrations.\n\n` +
+      `📍 <b>${escapeHtml(recommendation.ranked?.length ? `Found ${recommendation.ranked.length} pharmacy option(s) within ${recommendation.radiusKm} km.` : readiness.message)}</b>\n\n` +
+        `${nearbyList}\n\n` +
         `Active pharmacies tracked: <b>${readiness.activePharmacies}</b>\n` +
-        `Geo-ready pharmacies: <b>${readiness.geoIndexedPharmacies}</b>\n\n` +
-        `<i>For now, use /nearby to browse by area or type a medicine name to search stock.</i>`,
+        `Geo-ready pharmacies: <b>${readiness.geoIndexedPharmacies}</b>\n` +
+        `Search radius: <b>${recommendation.radiusKm} km</b>\n\n` +
+        `<i>Type a medicine name with “near me”, like: Dolo near me.</i>`,
       {
         parse_mode: "HTML",
         reply_markup: { remove_keyboard: true },
@@ -77,6 +105,56 @@ const handleLocation = async (ctx) => {
     logger.error(`Location nearby error: ${error.message}`);
     await ctx.reply("Could not process your location right now. Please try /nearby by area.");
   }
+};
+
+const formatNearbyRecommendations = (recommendation, medicineQuery = "") => {
+  const medicineLine = medicineQuery
+    ? `Medicine: <b>${escapeHtml(recommendation.medicine?.genericName || medicineQuery)}</b>\n`
+    : "";
+  if (!recommendation.ranked?.length) {
+    return (
+      `📍 <b>No nearby pharmacy matches yet</b>\n\n` +
+      medicineLine +
+      `We checked within <b>${recommendation.radiusKm} km</b>. Try another location or browse /nearby by area.`
+    );
+  }
+
+  const rows = recommendation.ranked.slice(0, 5).map((item, index) => {
+    const inventory = item.inventoryMatches?.length
+      ? `\n   Inventory: ${item.inventoryMatches.slice(0, 2).map((match) => escapeHtml(match.medicineName)).join(", ")}`
+      : "\n   Inventory: call to confirm";
+    const phone = item.phone ? `\n   📞 ${escapeHtml(item.phone)}` : "";
+    return (
+      `${index + 1}. <b>${escapeHtml(item.name)}</b>\n` +
+      `   Distance: <b>${escapeHtml(item.distance)}</b> · Score: <b>${item.score}</b>\n` +
+      `   Stock confidence: <b>${Math.round(item.inventoryConfidence * 100)}%</b>${inventory}${phone}\n` +
+      `   📍 ${escapeHtml(item.address)}`
+    );
+  });
+
+  return (
+    `📍 <b>Nearby Pharmacy Matches</b>\n` +
+    medicineLine +
+    `Search radius: <b>${recommendation.radiusKm} km</b>${recommendation.expandedRadius ? " (expanded)" : ""}\n\n` +
+    `${rows.join("\n\n")}\n\n` +
+    `<i>Stock info may change. Call ahead to confirm.</i>`
+  );
+};
+
+const handleNearbyMedicineSearch = async (ctx, { latitude, longitude, medicineQuery }) => {
+  const recommendation = await recommendNearbyPharmacies({
+    telegramId: ctx.from?.id,
+    latitude,
+    longitude,
+    medicineQuery,
+  });
+  await ctx.reply(formatNearbyRecommendations(recommendation, medicineQuery), {
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [[{ text: "🔄 Search Again", callback_data: "prompt_search" }]],
+    },
+  });
+  return recommendation;
 };
 
 /**
@@ -138,4 +216,12 @@ const handleAreas = async (ctx) => {
   );
 };
 
-module.exports = { handleNearby, handleAreaSelection, handleAreas, handleLocation, JAIPUR_AREAS };
+module.exports = {
+  formatNearbyRecommendations,
+  handleNearby,
+  handleNearbyMedicineSearch,
+  handleAreaSelection,
+  handleAreas,
+  handleLocation,
+  JAIPUR_AREAS,
+};
