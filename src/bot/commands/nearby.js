@@ -29,6 +29,22 @@ const JAIPUR_AREAS = [
   "Nirman Nagar",
 ];
 
+const buildNearbyActionKeyboard = (ranked = []) => {
+  const top = ranked?.[0];
+  const buttons = [[{ text: "🔄 Search Again", callback_data: "prompt_search" }]];
+  if (!top) return { inline_keyboard: buttons };
+
+  const actionRow = [];
+  if (top.phone) {
+    actionRow.push({ text: "📞 Call", callback_data: `pharmacy_call:${String(top.phone).replace(/\s+/g, "").substring(0, 42)}` });
+  }
+  if (top.directionsUrl) {
+    actionRow.push({ text: "🧭 Directions", url: top.directionsUrl });
+  }
+  if (actionRow.length) buttons.unshift(actionRow);
+  return { inline_keyboard: buttons };
+};
+
 /**
  * Show list of areas as inline keyboard.
  */
@@ -87,7 +103,7 @@ const handleLocation = async (ctx) => {
       ? recommendation.ranked
           .map((pharmacy, index) => {
             const phone = pharmacy.phone ? `\n   📞 ${escapeHtml(pharmacy.phone)}` : "";
-            return `${index + 1}. <b>${escapeHtml(pharmacy.name)}</b>\n   📍 ${escapeHtml(pharmacy.address)}\n   Distance: <b>${escapeHtml(pharmacy.distance)}</b> · Score: <b>${pharmacy.score}</b>${phone}`;
+            return `${index + 1}. <b>${escapeHtml(pharmacy.name)}</b>\n   📍 ${escapeHtml(pharmacy.address)}\n   Distance: <b>${escapeHtml(pharmacy.distance)}</b> · Match: <b>${Math.round(pharmacy.score * 100)}%</b>\n   ${escapeHtml(pharmacy.openStatus || "Hours unavailable")} · Source: ${escapeHtml(pharmacy.source || "unknown")}${phone}`;
           })
           .join("\n\n")
       : "No nearby pharmacies found for this location.";
@@ -97,11 +113,11 @@ const handleLocation = async (ctx) => {
         `${nearbyList}\n\n` +
         `Active pharmacies tracked: <b>${readiness.activePharmacies}</b>\n` +
         `Geo-ready pharmacies: <b>${readiness.geoIndexedPharmacies}</b>\n` +
-        `Search radius: <b>${recommendation.radiusKm} km</b>\n\n` +
+        `Search radius: <b>${recommendation.radiusKm} km</b>${recommendation.osmHydrated ? " · refreshed from OpenStreetMap" : ""}\n\n` +
         `<i>Type a medicine name with “near me”, like: Dolo near me.</i>`,
       {
         parse_mode: "HTML",
-        reply_markup: { remove_keyboard: true },
+        reply_markup: buildNearbyActionKeyboard(recommendation.ranked),
       }
     );
   } catch (error) {
@@ -129,8 +145,11 @@ const formatNearbyRecommendations = (recommendation, medicineQuery = "") => {
     const phone = item.phone ? `\n   📞 ${escapeHtml(item.phone)}` : "";
     return (
       `${index + 1}. <b>${escapeHtml(item.name)}</b>\n` +
-      `   Distance: <b>${escapeHtml(item.distance)}</b> · Score: <b>${item.score}</b>\n` +
-      `   Stock confidence: <b>${Math.round(item.inventoryConfidence * 100)}%</b>${inventory}${phone}\n` +
+      `   Distance: <b>${escapeHtml(item.distance)}</b> · Match: <b>${Math.round(item.score * 100)}%</b>\n` +
+      `   Open status: <b>${escapeHtml(item.openStatus || "Hours unavailable")}</b>\n` +
+      `   Stock confidence: <b>${Math.round(item.inventoryConfidence * 100)}%</b> · Medicine confidence: <b>${Math.round((recommendation.medicineConfidence || 0) * 100)}%</b>\n` +
+      `   Popularity: <b>${Math.round((item.popularityScore || 0) * 100)}%</b> · Search success: <b>${Math.round((item.searchSuccessScore || 0) * 100)}%</b>${inventory}${phone}\n` +
+      `   Source: <b>${escapeHtml(item.source || "unknown")}</b>\n` +
       `   📍 ${escapeHtml(item.address)}`
     );
   });
@@ -138,7 +157,7 @@ const formatNearbyRecommendations = (recommendation, medicineQuery = "") => {
   return (
     `📍 <b>Nearby Pharmacy Matches</b>\n` +
     medicineLine +
-    `Search radius: <b>${recommendation.radiusKm} km</b>${recommendation.expandedRadius ? " (expanded)" : ""}\n\n` +
+    `Search radius: <b>${recommendation.radiusKm} km</b>${recommendation.expandedRadius ? " (expanded)" : ""}${recommendation.osmHydrated ? " · refreshed from OpenStreetMap" : ""}\n\n` +
     `${rows.join("\n\n")}\n\n` +
     `<i>Stock info may change. Call ahead to confirm.</i>`
   );
@@ -153,9 +172,7 @@ const handleNearbyMedicineSearch = async (ctx, { latitude, longitude, medicineQu
   });
   await ctx.reply(formatNearbyRecommendations(recommendation, medicineQuery), {
     parse_mode: "HTML",
-    reply_markup: {
-      inline_keyboard: [[{ text: "🔄 Search Again", callback_data: "prompt_search" }]],
-    },
+    reply_markup: buildNearbyActionKeyboard(recommendation.ranked),
   });
   return recommendation;
 };
@@ -222,6 +239,7 @@ const handleAreas = async (ctx) => {
 };
 
 module.exports = {
+  buildNearbyActionKeyboard,
   formatNearbyRecommendations,
   handleNearby,
   handleNearbyMedicineSearch,

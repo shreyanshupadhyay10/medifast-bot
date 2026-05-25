@@ -19,13 +19,14 @@ const safeExecute = async (toolName, payload) => {
 const executeWorkflowTools = async ({ plan, telegramId, profile }) => {
   const results = {};
   const executionTrace = [];
+  const medicineQuery = plan.entities?.medicine || plan.entities?.normalizedMedicineQuery || plan.query;
 
   if (plan.execute.family) {
     results.family = { ok: true, value: profile };
     executionTrace.push({ tool: "family", ok: true });
   }
   if (plan.execute.medicine) {
-    results.medicineKnowledge = await safeExecute("searchMedicineKnowledge", { query: plan.query });
+    results.medicineKnowledge = await safeExecute("searchMedicineKnowledge", { query: medicineQuery });
     executionTrace.push({ tool: "searchMedicineKnowledge", ok: results.medicineKnowledge.ok !== false });
   }
   if (plan.execute.memory && telegramId) {
@@ -41,7 +42,7 @@ const executeWorkflowTools = async ({ plan, telegramId, profile }) => {
       telegramId,
       latitude: plan.location.latitude,
       longitude: plan.location.longitude,
-      medicineQuery: plan.query,
+      medicineQuery,
       medicineKnowledge: results.medicineKnowledge?.value,
     });
     executionTrace.push({ tool: "recommendNearbyPharmacies", ok: results.nearby.ok !== false });

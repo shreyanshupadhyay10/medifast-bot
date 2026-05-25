@@ -3,13 +3,15 @@ const Inventory = require("../../models/Inventory");
 const SosRequest = require("../../models/SosRequest");
 const { getOpenSosRequests } = require("../../services/searchService");
 const { getAnalyticsSummary } = require("../../services/analyticsService");
+const { diagnoseProductionHealth } = require("../../diagnostics/productionHealth");
+const { traceRuntime, formatRuntimeTrace } = require("../../diagnostics/runtimeTrace");
 const { searchMedicineKnowledge } = require("../../medicine/medicineKnowledgeService");
 const { recommendNearbyPharmacies } = require("../../pharmacy/pharmacyRecommendationService");
 const { getSessionLocation } = require("../../pharmacy/pharmacyLocationService");
 const { getCityConfig } = require("../../../config/cities");
 const { getOrCreateProfile } = require("../../services/familyService");
 const { runMediFastWorkflow } = require("../../orchestrator/orchestrator");
-const { escapeHtml } = require("../../utils/formatter");
+const { escapeHtml, formatProductionHealth } = require("../../utils/formatter");
 const logger = require("../../utils/logger");
 
 /**
@@ -28,6 +30,11 @@ const handleAdminMenu = async (ctx) => {
       `/closesos &lt;id&gt; — Close an SOS request\n\n` +
       `<b>Stats:</b>\n` +
       `/stats — Database statistics\n` +
+      `/health — Production health\n` +
+      `/status — Short production status\n` +
+      `/runtime &lt;query&gt; — End-to-end runtime trace\n` +
+      `/trace &lt;query&gt; — Same as runtime trace\n` +
+      `/nearby-debug &lt;medicine&gt; — Trace nearby ranking\n` +
       `/analytics — Product analytics\n` +
       `/admindebug &lt;query&gt; — Trace medicine + nearby matching`,
     { parse_mode: "HTML" }
@@ -248,6 +255,69 @@ const handleStats = async (ctx) => {
   }
 };
 
+const handleRuntimeTrace = async (ctx, args) => {
+  const query = args?.trim() || "Dolo near me";
+  try {
+    const savedLocation = await getSessionLocation(ctx.from?.id);
+    const jaipur = getCityConfig("Jaipur");
+    const trace = await traceRuntime({
+      query,
+      from: ctx.from,
+      location: savedLocation || { latitude: jaipur.lat, longitude: jaipur.lng },
+    });
+    await ctx.reply(formatRuntimeTrace(trace, escapeHtml), { parse_mode: "HTML" });
+  } catch (error) {
+    logger.error(`Runtime trace error: ${error.message}`);
+    await ctx.reply(`⚠️ Runtime trace failed: ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
+  }
+};
+
+const handleNearbyDebug = async (ctx, args) => {
+  const medicineQuery = args?.trim() || "Dolo";
+  try {
+    const savedLocation = await getSessionLocation(ctx.from?.id);
+    const jaipur = getCityConfig("Jaipur");
+    const location = savedLocation || { latitude: jaipur.lat, longitude: jaipur.lng };
+    const recommendation = await recommendNearbyPharmacies({
+      telegramId: ctx.from?.id,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      medicineQuery,
+    });
+    const rows = (recommendation.ranked || []).slice(0, 5).map((item, index) =>
+      `${index + 1}. <b>${escapeHtml(item.name)}</b>\n` +
+      `   Distance: ${escapeHtml(item.distance)} · Score: ${Math.round(item.score * 100)}%\n` +
+      `   Inventory: ${Math.round((item.inventoryConfidence || 0) * 100)}% · Medicine: ${Math.round((recommendation.medicineConfidence || 0) * 100)}%\n` +
+      `   Popularity: ${Math.round((item.popularityScore || 0) * 100)}% · Success: ${Math.round((item.searchSuccessScore || 0) * 100)}%\n` +
+      `   Source: ${escapeHtml(item.source || "unknown")}`
+    ).join("\n\n") || "No ranked pharmacies.";
+
+    await ctx.reply(
+      `📍 <b>Nearby Debug</b>\n\n` +
+      `Medicine: <code>${escapeHtml(medicineQuery)}</code>\n` +
+      `Location: <b>${savedLocation ? "saved Telegram location" : "Jaipur default"}</b>\n` +
+      `Radius: <b>${recommendation.radiusKm} km</b>${recommendation.expandedRadius ? " (expanded)" : ""}${recommendation.osmHydrated ? " · OSM refreshed" : ""}\n` +
+      `Inventory matches: <b>${recommendation.inventoryMatchCount || 0}</b>\n` +
+      `Confidence quality: <b>${Math.round((recommendation.confidenceQuality || 0) * 100)}%</b>\n\n` +
+      rows,
+      { parse_mode: "HTML" }
+    );
+  } catch (error) {
+    logger.error(`Nearby debug error: ${error.message}`);
+    await ctx.reply(`⚠️ Nearby debug failed: ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
+  }
+};
+
+const handleHealthStatus = async (ctx) => {
+  try {
+    const report = await diagnoseProductionHealth();
+    await ctx.reply(formatProductionHealth(report), { parse_mode: "HTML" });
+  } catch (error) {
+    logger.error(`Health status error: ${error.message}`);
+    await ctx.reply(`⚠️ Health check failed: ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
+  }
+};
+
 const handleAdminDebug = async (ctx, args) => {
   const query = args?.trim() || "Dolo near me";
   try {
@@ -352,6 +422,9 @@ module.exports = {
   handleUpdateStock,
   handleOpenSos,
   handleStats,
+  handleHealthStatus,
+  handleRuntimeTrace,
+  handleNearbyDebug,
   handleAnalytics,
   handleAdminDebug,
 };

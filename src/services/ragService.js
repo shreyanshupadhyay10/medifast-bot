@@ -30,7 +30,7 @@ const knowledgeFilter = (metadata = {}) =>
     return filter;
   }, {});
 
-const LOW_CONFIDENCE_THRESHOLD = Number(process.env.RETRIEVAL_CONFIDENCE_THRESHOLD || 0.45);
+const LOW_CONFIDENCE_THRESHOLD = Number(process.env.RETRIEVAL_CONFIDENCE_THRESHOLD || 0.4);
 
 const retrieveKnowledge = async ({ question, metadata = {}, k = 4 }) => {
   const startedAt = Date.now();

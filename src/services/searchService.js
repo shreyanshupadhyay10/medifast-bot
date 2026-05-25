@@ -5,6 +5,7 @@ const SosRequest = require("../models/SosRequest");
 const medicineCache = require("../cache/medicineCache");
 const { searchMedicineKnowledge } = require("../medicine/medicineKnowledgeService");
 const { expandMedicineQuery } = require("./medicineAliasService");
+const { detectIntent } = require("./intentEngine");
 const logger = require("../utils/logger");
 
 // Fuse.js configuration for fuzzy medicine name search
@@ -118,6 +119,7 @@ const mapKnowledgeResult = (knowledge, query) => {
     category: normalizeCategory(medicine.category),
     lastVerified: medicine.updatedAt || medicine.sourceMetadata?.importedAt || null,
     matchScore: Math.max(0.05, 1 - (knowledge.confidence || medicine.confidence || 0.75)),
+    confidence: knowledge.confidence || medicine.confidence || 0.75,
     knowledgeOnly: true,
     alternatives: knowledge.alternatives || [],
     pharmacy: {
@@ -145,14 +147,20 @@ const searchKnowledgeFallback = async (query) => {
         prescriptionRequired: Boolean(aliasExpansion.alias.rxRequired),
         confidence: 0.9,
       };
-      return [mapKnowledgeResult({ medicine: aliasMedicine, confidence: 0.9, alternatives: [] }, query)];
+      return {
+        results: [mapKnowledgeResult({ medicine: aliasMedicine, confidence: 0.9, alternatives: [] }, query)],
+        suggestions: [],
+      };
     }
     const knowledge = await searchMedicineKnowledge({ query });
     const result = mapKnowledgeResult(knowledge, query);
-    return result ? [result] : [];
+    return {
+      results: result ? [result] : [],
+      suggestions: knowledge?.suggestions || [],
+    };
   } catch (error) {
     logger.warn(`Medicine knowledge fallback failed: ${error.message}`);
-    return [];
+    return { results: [], suggestions: [] };
   }
 };
 
@@ -162,18 +170,28 @@ const searchMedicine = async (query, options = {}) => {
   }
 
   const trimmedQuery = query.trim();
-  const searchTerms = [trimmedQuery, ...(options.searchTerms || [])].filter(Boolean);
-  const categories = options.categories || [];
-  const cached = medicineCache.get(trimmedQuery, { searchTerms, categories });
+  const inferredIntent = options.key || options.confidence ? options : detectIntent(trimmedQuery);
+  const primaryQuery = inferredIntent?.confidence && inferredIntent.confidence !== "medicine"
+    ? inferredIntent.normalizedQuery
+    : trimmedQuery;
+  const searchTerms = [
+    primaryQuery,
+    trimmedQuery,
+    ...(inferredIntent.searchTerms || []),
+    ...(options.searchTerms || []),
+  ].filter(Boolean);
+  const categories = [...new Set([...(inferredIntent.categories || []), ...(options.categories || [])])];
+  const cached = medicineCache.get(primaryQuery, { searchTerms, categories });
   if (cached) return { ...cached, cacheHit: true };
 
   if (!liveInventorySearchEnabled()) {
-    const knowledgeResults = await searchKnowledgeFallback(trimmedQuery);
-    return medicineCache.set(trimmedQuery, { searchTerms, categories }, {
-      results: knowledgeResults,
-      sos: knowledgeResults.length === 0,
-      knowledgeOnly: knowledgeResults.length > 0,
-      query: trimmedQuery,
+    const knowledgeFallback = await searchKnowledgeFallback(primaryQuery);
+    return medicineCache.set(primaryQuery, { searchTerms, categories }, {
+      results: knowledgeFallback.results,
+      suggestions: knowledgeFallback.suggestions,
+      sos: knowledgeFallback.results.length === 0,
+      knowledgeOnly: knowledgeFallback.results.length > 0,
+      query: primaryQuery,
     });
   }
 
@@ -206,12 +224,13 @@ const searchMedicine = async (query, options = {}) => {
   );
 
   if (activeInventory.length === 0) {
-    const knowledgeResults = await searchKnowledgeFallback(trimmedQuery);
-    return medicineCache.set(trimmedQuery, { searchTerms, categories }, {
-      results: knowledgeResults,
-      sos: knowledgeResults.length === 0,
-      knowledgeOnly: knowledgeResults.length > 0,
-      query: trimmedQuery,
+    const knowledgeFallback = await searchKnowledgeFallback(primaryQuery);
+    return medicineCache.set(primaryQuery, { searchTerms, categories }, {
+      results: knowledgeFallback.results,
+      suggestions: knowledgeFallback.suggestions,
+      sos: knowledgeFallback.results.length === 0,
+      knowledgeOnly: knowledgeFallback.results.length > 0,
+      query: primaryQuery,
     });
   }
 
@@ -233,13 +252,14 @@ const searchMedicine = async (query, options = {}) => {
   const combinedResults = uniqueById([...fuseResults, ...categoryResults]);
 
   if (combinedResults.length === 0) {
-    const knowledgeResults = await searchKnowledgeFallback(trimmedQuery);
-    if (knowledgeResults.length > 0) {
-      return medicineCache.set(trimmedQuery, { searchTerms, categories }, {
-        results: knowledgeResults,
+    const knowledgeFallback = await searchKnowledgeFallback(primaryQuery);
+    if (knowledgeFallback.results.length > 0) {
+      return medicineCache.set(primaryQuery, { searchTerms, categories }, {
+        results: knowledgeFallback.results,
+        suggestions: knowledgeFallback.suggestions,
         sos: false,
         knowledgeOnly: true,
-        query: trimmedQuery,
+        query: primaryQuery,
       });
     }
 
@@ -249,11 +269,12 @@ const searchMedicine = async (query, options = {}) => {
       medicineNameLower: { $regex: trimmedQuery.toLowerCase(), $options: "i" },
     });
 
-    return medicineCache.set(trimmedQuery, { searchTerms, categories }, {
+    return medicineCache.set(primaryQuery, { searchTerms, categories }, {
       results: [],
+      suggestions: knowledgeFallback.suggestions,
       sos: true, // trigger SOS flow
       isRare: !!rareMatch,
-      query: trimmedQuery,
+      query: primaryQuery,
     });
   }
 
@@ -265,11 +286,11 @@ const searchMedicine = async (query, options = {}) => {
   // Check if any result is a rare medicine
   const hasRare = results.some((r) => r.isRare);
 
-  return medicineCache.set(trimmedQuery, { searchTerms, categories }, {
+  return medicineCache.set(primaryQuery, { searchTerms, categories }, {
     results,
     sos: results.length === 0,
     hasRare,
-    query: trimmedQuery,
+    query: primaryQuery,
   });
 };
 

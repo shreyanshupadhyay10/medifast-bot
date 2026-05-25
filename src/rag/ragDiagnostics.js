@@ -3,6 +3,7 @@ const { chunkDocuments } = require("./chunker");
 const { getCollection, DEFAULT_COLLECTION, getVectorMode, getVectorStoragePath } = require("./retriever");
 const { retrieveKnowledge } = require("../services/ragService");
 const { getRetrievalQualitySummary } = require("./evaluator");
+const { loadMedicineKnowledgeDocuments } = require("./medicineKnowledgeIngestion");
 
 const countVectors = async (collectionName = DEFAULT_COLLECTION) => {
   try {
@@ -29,6 +30,7 @@ const diagnoseRag = async ({ query = "fever medicine safety", collectionName = D
   const documents = await loadKnowledgeBase();
   const chunks = await chunkDocuments(documents);
   const vector = await countVectors(collectionName);
+  const medicineDocuments = await loadMedicineKnowledgeDocuments({ limit: Number(process.env.RAG_DIAGNOSTIC_MEDICINE_SAMPLE || 25) });
   const retrieval = await retrieveKnowledge({ question: query, k: 4 });
   const quality = await getRetrievalQualitySummary();
 
@@ -36,6 +38,7 @@ const diagnoseRag = async ({ query = "fever medicine safety", collectionName = D
     knowledgeFiles: files.length,
     loadedDocuments: documents.length,
     chunkCount: chunks.length,
+    medicineKnowledgeSampleDocuments: medicineDocuments.length,
     chromaAvailable: vector.available,
     vectorMode: getVectorMode(),
     vectorCount: vector.vectorCount,

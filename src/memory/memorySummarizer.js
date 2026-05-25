@@ -1,5 +1,16 @@
 const MAX_RECENT_MESSAGES = 12;
-const IMPORTANT_FACT_TYPES = new Set(["condition", "allergy", "family_context", "preference"]);
+const IMPORTANT_FACT_TYPES = new Set([
+  "condition",
+  "allergy",
+  "family_context",
+  "family_relationship",
+  "family_medicine",
+  "history_intent",
+  "medicine_context",
+  "medicine_history",
+  "preference",
+  "refill_pattern",
+]);
 
 const summarizeMemory = (memory) => {
   if (!memory) {

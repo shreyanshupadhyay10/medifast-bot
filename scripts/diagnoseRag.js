@@ -11,6 +11,7 @@ const run = async () => {
   console.log(`Knowledge files: ${report.knowledgeFiles}`);
   console.log(`Loaded documents: ${report.loadedDocuments}`);
   console.log(`Chunks: ${report.chunkCount}`);
+  console.log(`MedicineKnowledge sample documents: ${report.medicineKnowledgeSampleDocuments}`);
   console.log(`Vector mode: ${report.vectorMode}`);
   console.log(`Chroma available: ${report.chromaAvailable}`);
   console.log(`Vector count: ${report.vectorCount}`);

@@ -90,8 +90,10 @@ const medicineKnowledgeSchema = new mongoose.Schema(
       index: true,
     },
     symptoms: [{ type: String, trim: true }],
+    diseases: [{ type: String, trim: true }],
     sideEffects: [sideEffectSchema],
     precautions: [{ type: String, trim: true }],
+    refillPatterns: [{ type: String, trim: true }],
     prescriptionRequired: {
       type: Boolean,
       default: false,

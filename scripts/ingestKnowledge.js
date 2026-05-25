@@ -1,8 +1,11 @@
+require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
+const connectDB = require("../config/database");
 const { loadKnowledgeBase } = require("../src/rag/documentLoader");
 const { chunkDocuments } = require("../src/rag/chunker");
 const { upsertChunks } = require("../src/rag/retriever");
+const { ingestMedicineKnowledgeToRag } = require("../src/rag/medicineKnowledgeIngestion");
 
 const KNOWLEDGE_ROOT = path.join(__dirname, "..", "knowledge-base");
 
@@ -35,10 +38,12 @@ const collectKnowledgeFiles = (dir) => {
 };
 
 const run = async () => {
+  await connectDB();
   const files = collectKnowledgeFiles(KNOWLEDGE_ROOT);
   const documents = await loadKnowledgeBase(KNOWLEDGE_ROOT);
   const chunks = await chunkDocuments(documents);
   const result = await upsertChunks(chunks);
+  const medicineResult = await ingestMedicineKnowledgeToRag();
 
   console.log(`Knowledge ingestion complete. Found ${files.length} file(s), ${documents.length} document(s), ${chunks.length} chunk(s).`);
   documents.forEach((doc) => {
@@ -46,7 +51,13 @@ const run = async () => {
     console.log(`- ${metadata.category}: ${path.basename(metadata.source || "unknown")} [trust=${metadata.trust}]`);
   });
   console.log(`Saved ${result.count} vector(s) into vector collection "${result.collectionName}" [mode=${result.vectorMode}].`);
+  console.log(
+    `MedicineKnowledge RAG activation: processed ${medicineResult.medicineDocuments} record(s) this run, ` +
+      `${medicineResult.vectorizedChunks || medicineResult.count} total chunk(s), complete=${medicineResult.complete}.`
+  );
+  if (medicineResult.progressPath) console.log(`MedicineKnowledge progress: ${medicineResult.progressPath}`);
   if (result.storagePath) console.log(`Local vector storage: ${result.storagePath}`);
+  process.exit(0);
 };
 
 run().catch((error) => {

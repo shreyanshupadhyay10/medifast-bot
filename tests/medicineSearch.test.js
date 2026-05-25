@@ -34,3 +34,12 @@ test("curated medicine aliases resolve common Indian brands without live invento
     assert.equal(result.sos, false);
   }
 });
+
+test("raw Hinglish symptom query normalizes inside search service", async () => {
+  process.env.ENABLE_LIVE_INVENTORY_SEARCH = "false";
+  const { searchMedicine } = require("../src/services/searchService");
+  const result = await searchMedicine("bukhar ki tablet");
+
+  assert.equal(result.results.length > 0, true);
+  assert.match(result.results[0].genericName || result.results[0].medicineName, /Paracetamol/i);
+});

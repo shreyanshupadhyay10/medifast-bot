@@ -1,7 +1,7 @@
 const { Bot, GrammyError, HttpError } = require("grammy");
 const { handleSearch } = require("./commands/search");
 const { handleSos, handleSosStep, isInSosFlow } = require("./commands/sos");
-const { handleNearby, handleAreaSelection, handleAreas, handleLocation } = require("./commands/nearby");
+const { handleNearby, handleNearbyMedicineSearch, handleAreaSelection, handleAreas, handleLocation } = require("./commands/nearby");
 const {
   handleFamily,
   handleAddMember,
@@ -16,6 +16,9 @@ const {
   handleUpdateStock,
   handleOpenSos,
   handleStats,
+  handleHealthStatus,
+  handleRuntimeTrace,
+  handleNearbyDebug,
   handleAnalytics,
   handleAdminDebug,
 } = require("./commands/admin");
@@ -23,6 +26,8 @@ const { isAdmin } = require("./middleware/adminGuard");
 const { rateLimiter } = require("./middleware/rateLimiter");
 const { formatWelcome, formatHelp } = require("../utils/formatter");
 const { setLanguage } = require("../services/familyService");
+const { addConversationTurn } = require("../services/memoryService");
+const { getSessionLocation, shareLocationKeyboard } = require("../pharmacy/pharmacyLocationService");
 const eventBus = require("../events/eventBus");
 const { registerAnalyticsListener } = require("../events/listeners/analyticsListener");
 const { registerGuardianAlertListener } = require("../events/listeners/guardianAlertListener");
@@ -129,6 +134,17 @@ const createBot = () => {
 
   bot.command("opensos", isAdmin, handleOpenSos);
   bot.command("stats", isAdmin, handleStats);
+  bot.command("health", isAdmin, handleHealthStatus);
+  bot.command("status", isAdmin, handleHealthStatus);
+  bot.command("runtime", isAdmin, async (ctx) => {
+    await handleRuntimeTrace(ctx, ctx.match?.trim());
+  });
+  bot.command("trace", isAdmin, async (ctx) => {
+    await handleRuntimeTrace(ctx, ctx.match?.trim());
+  });
+  bot.command("nearby-debug", isAdmin, async (ctx) => {
+    await handleNearbyDebug(ctx, ctx.match?.trim());
+  });
   bot.command("analytics", isAdmin, handleAnalytics);
   bot.command("admindebug", isAdmin, async (ctx) => {
     await handleAdminDebug(ctx, ctx.match?.trim());
@@ -159,9 +175,22 @@ const createBot = () => {
           inline_keyboard: [
             [{ text: "📍 Enable Nearby", callback_data: "nearby:open" }],
             [{ text: "👨‍👩‍👧 Add Family Later", callback_data: "family:open" }],
+            [{ text: "💡 Show Examples", callback_data: "onboard:examples" }],
           ],
         },
       }
+    );
+  });
+
+  bot.callbackQuery("onboard:examples", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.reply(
+      `💡 <b>Try these</b>\n\n` +
+        `• <code>Dolo 650 near me</code>\n` +
+        `• <code>side effects of Pregabalin</code>\n` +
+        `• <code>Papa has BP and needs fever medicine</code>\n` +
+        `• <code>reorder papa medicine</code>`,
+      { parse_mode: "HTML" }
     );
   });
 
@@ -183,6 +212,53 @@ const createBot = () => {
   bot.callbackQuery("nearby:open", async (ctx) => {
     await ctx.answerCallbackQuery();
     await handleNearby(ctx);
+  });
+
+  bot.callbackQuery(/^nearby_medicine:(.+)$/, async (ctx) => {
+    const medicineQuery = ctx.match[1];
+    await ctx.answerCallbackQuery();
+    const location = await getSessionLocation(ctx.from.id);
+    if (!location) {
+      return ctx.reply("📍 Share your location once and I will find nearby pharmacies for this medicine.", {
+        reply_markup: shareLocationKeyboard(),
+      });
+    }
+    return handleNearbyMedicineSearch(ctx, {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      medicineQuery,
+    });
+  });
+
+  bot.callbackQuery(/^pharmacy_call:(.+)$/, async (ctx) => {
+    const phone = ctx.match[1];
+    await ctx.answerCallbackQuery();
+    await ctx.reply(`📞 Call pharmacy: <code>${phone}</code>\n\nPlease confirm stock before travelling.`, {
+      parse_mode: "HTML",
+    });
+  });
+
+  bot.callbackQuery(/^details:(side|alt):(.+)$/, async (ctx) => {
+    const type = ctx.match[1];
+    const query = ctx.match[2];
+    await ctx.answerCallbackQuery();
+    const prompt = type === "side" ? `side effects of ${query}` : `alternatives of ${query}`;
+    await handleSearch(ctx, prompt);
+  });
+
+  bot.callbackQuery(/^save_search:(.+)$/, async (ctx) => {
+    const query = ctx.match[1];
+    await ctx.answerCallbackQuery("Saved");
+    await addConversationTurn({
+      telegramId: ctx.from.id,
+      userText: `save ${query}`,
+      entities: {
+        normalizedText: `save ${query}`,
+        medicine: query,
+        normalizedMedicineQuery: query,
+      },
+    });
+    await ctx.reply(`💾 Saved <b>${query}</b> to your medicine memory.`, { parse_mode: "HTML" });
   });
 
   bot.callbackQuery(/^search_intent:(.+)$/, async (ctx) => {

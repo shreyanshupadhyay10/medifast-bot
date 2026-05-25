@@ -22,6 +22,13 @@ const buildRelationships = (medicine = {}) => {
   (medicine.symptoms || []).forEach((symptom) => {
     relationships.push({ type: "medicine_symptom", from: generic, to: symptom });
     relationships.push({ type: "symptom_medicine", from: symptom, to: generic });
+    relationships.push({ type: "medicine_disease", from: generic, to: symptom });
+    relationships.push({ type: "disease_medicine", from: symptom, to: generic });
+  });
+
+  (medicine.diseases || []).forEach((disease) => {
+    relationships.push({ type: "medicine_disease", from: generic, to: disease });
+    relationships.push({ type: "disease_medicine", from: disease, to: generic });
   });
 
   (medicine.sideEffects || []).forEach((sideEffect) => {
@@ -41,6 +48,24 @@ const buildRelationships = (medicine = {}) => {
     relationships.push({ type: "manufacturer_medicine", from: medicine.company, to: generic });
   }
 
+  (medicine.refillPatterns || []).forEach((pattern) => {
+    relationships.push({ type: "medicine_refill_pattern", from: generic, to: pattern });
+    relationships.push({ type: "refill_pattern_medicine", from: pattern, to: generic });
+  });
+
+  return relationships;
+};
+
+const buildRefillRelationships = ({ medicineName, entity, pattern = "repeat_search" } = {}) => {
+  if (!medicineName) return [];
+  const relationships = [
+    { type: "medicine_refill_pattern", from: medicineName, to: pattern },
+    { type: "refill_pattern_medicine", from: pattern, to: medicineName },
+  ];
+  if (entity) {
+    relationships.push({ type: "family_refill_pattern", from: entity, to: medicineName });
+    relationships.push({ type: "medicine_family_refill", from: medicineName, to: entity });
+  }
   return relationships;
 };
 
@@ -64,5 +89,6 @@ const findRelatedMedicines = async (medicine, { limit = 5 } = {}) => {
 
 module.exports = {
   buildRelationships,
+  buildRefillRelationships,
   findRelatedMedicines,
 };

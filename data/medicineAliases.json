@@ -86,5 +86,53 @@
     "commonSpellings": ["clonazepam", "clonazapam", "clonazpam", "clonotril"],
     "category": "neurological",
     "rxRequired": true
+  },
+  {
+    "salt": "Montelukast + Levocetirizine",
+    "brands": ["Montek LC", "Montair LC"],
+    "company": "Common India brands",
+    "commonSpellings": ["monteklc", "montek lc", "montek-lc", "montair lc"],
+    "category": "respiratory",
+    "rxRequired": true
+  },
+  {
+    "salt": "Ranitidine",
+    "brands": ["Aciloc"],
+    "company": "Common India brands",
+    "commonSpellings": ["aciloc", "acilok", "acidity tablet"],
+    "category": "gastro",
+    "rxRequired": false
+  },
+  {
+    "salt": "Telmisartan + Amlodipine",
+    "brands": ["Telma AM", "Telma-AM"],
+    "company": "Common India brands",
+    "commonSpellings": ["telma am", "telma-am", "telmaam"],
+    "category": "cardiac",
+    "rxRequired": true
+  },
+  {
+    "salt": "Rabeprazole + Domperidone",
+    "brands": ["Rablet D", "Rablet-D"],
+    "company": "Common India brands",
+    "commonSpellings": ["rablet d", "rablet-d", "rabletd"],
+    "category": "gastro",
+    "rxRequired": true
+  },
+  {
+    "salt": "Metformin + Glimepiride",
+    "brands": ["Glycomet GP"],
+    "company": "Common India brands",
+    "commonSpellings": ["glycomet gp", "glycomet-gp", "glycometgp"],
+    "category": "antidiabetic",
+    "rxRequired": true
+  },
+  {
+    "salt": "Amoxicillin + Clavulanic Acid",
+    "brands": ["Augmentin"],
+    "company": "Common India brands",
+    "commonSpellings": ["augmentin", "amoxicillin clavulanate", "amoxicillin clavulanic acid"],
+    "category": "antibiotic",
+    "rxRequired": true
   }
 ]

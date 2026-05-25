@@ -30,7 +30,19 @@ const loadMedicineSynonyms = () => {
   return synonymsCache;
 };
 
-const uniqueTerms = (terms = []) => Array.from(new Set(terms.map(normalizeIdentity).filter(Boolean)));
+const compactIdentity = (value = "") => normalizeIdentity(value).replace(/\s+/g, "");
+const uniqueTerms = (terms = []) =>
+  Array.from(
+    new Set(
+      terms
+        .flatMap((term) => {
+          const normalized = normalizeIdentity(term);
+          const compact = compactIdentity(term);
+          return compact && compact !== normalized ? [normalized, compact] : [normalized];
+        })
+        .filter(Boolean)
+    )
+  );
 
 const tokensFor = (value = "") =>
   normalizeIdentity(value)
@@ -114,6 +126,12 @@ const candidateTermsForRecord = (record = {}) => ({
   brands: uniqueTerms(record.brands || []),
 });
 
+const rawQueryForRecord = (record = {}) =>
+  [record.genericName, record.medicineName, ...(record.brands || [])]
+    .map(normalizeIdentity)
+    .filter(Boolean)
+    .join(" ");
+
 const expandWithSynonyms = (terms = [], synonyms = loadMedicineSynonyms()) => {
   const expanded = new Set(terms);
   terms.forEach((term) => {
@@ -186,8 +204,7 @@ const exactPriorityMatch = (record, index, synonyms = loadMedicineSynonyms()) =>
 };
 
 const fuzzyMatch = (record, index, { candidateLimit = Number(process.env.MEDICINE_MATCHER_FUZZY_CANDIDATE_LIMIT || 500) } = {}) => {
-  const terms = candidateTermsForRecord(record);
-  const query = [...terms.genericName, ...terms.medicineName, ...terms.brands].filter(Boolean).join(" ");
+  const query = rawQueryForRecord(record);
   if (!query) return new Map();
 
   const candidateMap = new Map();
@@ -243,8 +260,7 @@ const cosineSimilarity = (left = [], right = []) => {
 };
 
 const semanticMatch = async (record, index, { limit = 8, embeddingProvider = createEmbeddingProvider() } = {}) => {
-  const terms = candidateTermsForRecord(record);
-  const query = [...terms.genericName, ...terms.medicineName, ...terms.brands].filter(Boolean).join(" ");
+  const query = rawQueryForRecord(record);
   if (!query || !index.medicines.length) return new Map();
 
   const queryVector = await embeddingProvider.embedQuery(query);
@@ -325,6 +341,7 @@ const matchMedicine = async (record = {}, index, options = {}) => {
 module.exports = {
   buildMedicineMatcherIndex,
   candidateTermsForRecord,
+  compactIdentity,
   cosineSimilarity,
   exactPriorityMatch,
   expandWithSynonyms,

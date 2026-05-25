@@ -124,10 +124,83 @@ const importPharmaciesForCity = async ({ cityName = "Jaipur", fetchImpl, dryRun 
   };
 };
 
+const importPharmaciesNearLocation = async ({
+  latitude,
+  longitude,
+  radiusKm = Number(process.env.OSM_LIVE_RADIUS_KM || 8),
+  cityName = "Nearby",
+  fetchImpl,
+  dryRun = false,
+} = {}) => {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return {
+      city: cityName,
+      source: "OpenStreetMap",
+      rawRecords: 0,
+      validRecords: 0,
+      failedImports: 1,
+      coordinateIssues: 1,
+      duplicateRemovals: 0,
+      importedPharmacyCount: 0,
+      records: [],
+    };
+  }
+
+  const city = {
+    name: cityName,
+    lat,
+    lng,
+    radiusKm,
+  };
+  const osm = await fetchOsmPharmacies({ city, fetchImpl });
+  const normalized = osm.records.map((record) =>
+    normalizeOsmPharmacy(record, {
+      cityName,
+      sourceName: osm.sourceName,
+      datasetVersion: osm.datasetVersion,
+    })
+  );
+  const validation = validateDataset(normalized);
+  const merged = mergeDataset(validation.valid);
+  const result = dryRun ? { imported: 0, upserted: 0, modified: 0 } : await upsertPharmacies(merged.records);
+
+  if (!dryRun) await ensurePharmacyIndexes();
+
+  const summary = {
+    city: cityName,
+    source: osm.sourceName,
+    datasetVersion: osm.datasetVersion,
+    rawRecords: osm.records.length,
+    validRecords: validation.valid.length,
+    failedImports: validation.failed.length,
+    coordinateIssues: validation.coordinateIssues.length,
+    duplicateRemovals: merged.duplicateCount,
+    importedPharmacyCount: result.imported,
+    upserted: result.upserted,
+    modified: result.modified,
+    cityCoverage: {
+      lat,
+      lng,
+      radiusKm,
+      validPharmacies: merged.records.length,
+    },
+  };
+
+  eventBus.emitSafe("pharmacy.import.completed", summary);
+  return {
+    ...summary,
+    failed: validation.failed,
+    records: merged.records,
+  };
+};
+
 module.exports = {
   ensurePharmacyIndexes,
   identityFor,
   importPharmaciesForCity,
+  importPharmaciesNearLocation,
   removeSeededDummyPharmacies,
   upsertPharmacies,
 };

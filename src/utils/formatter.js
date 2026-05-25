@@ -37,6 +37,11 @@ const formatAvailabilityConfidence = (score) => {
   return "Discovery";
 };
 
+const formatConfidencePercent = (value, fallback = 0.72) => {
+  const score = Number.isFinite(Number(value)) ? Number(value) : fallback;
+  return `${Math.round(Math.max(0, Math.min(1, score)) * 100)}%`;
+};
+
 const formatUseCase = (item, intent) => {
   if (intent?.label) return intent.label;
   const categoryMap = {
@@ -62,11 +67,10 @@ const formatSearchResults = (results, query, context = {}) => {
   const { intent, mentionedMember, repeatSearch } = context;
   const routes = context.routes || [];
 
-  let message = `🏥 <b>MediFast AI Results</b>\n`;
-  message += `Query: <b>${escapeHtml(query)}</b>\n`;
+  let message = `💊 <b>${escapeHtml(query)}</b>\n`;
   if (intent?.label) {
-    message += `Understood as: <i>${escapeHtml(intent.label)}</i>`;
-    if (intent.confidence) message += ` (${escapeHtml(intent.confidence)} confidence)`;
+    message += `Understood: <i>${escapeHtml(intent.label)}</i>`;
+    if (intent.confidence) message += ` · confidence ${escapeHtml(intent.confidence)}`;
     message += `\n`;
   }
   if (context.alias) {
@@ -79,8 +83,8 @@ const formatSearchResults = (results, query, context = {}) => {
   const knowledgeOnlyCount = results.filter((item) => item.knowledgeOnly).length;
   const liveCount = results.length - knowledgeOnlyCount;
   message += knowledgeOnlyCount && !liveCount
-    ? `Found <b>${results.length}</b> medicine knowledge match${results.length !== 1 ? "es" : ""}\n`
-    : `Found <b>${results.length}</b> live match${results.length !== 1 ? "es" : ""}\n`;
+    ? `Result: <b>${results.length}</b> knowledge match${results.length !== 1 ? "es" : ""}\n`
+    : `Result: <b>${results.length}</b> live match${results.length !== 1 ? "es" : ""}\n`;
   if (repeatSearch?.topMedicineName) {
     message += `\n🔁 Need to reorder previous medicine: <b>${escapeHtml(repeatSearch.topMedicineName)}</b>?\n`;
   }
@@ -100,8 +104,9 @@ const formatSearchResults = (results, query, context = {}) => {
     const rareTag = item.isRare ? " 🔴 <b>[RARE]</b>" : "";
     const rxTag = item.requiresPrescription ? " 📋 <i>Rx required</i>" : "";
 
+    const matchConfidence = item.knowledgeOnly ? formatConfidencePercent(item.confidence || item.matchConfidence || 0.74) : formatAvailabilityConfidence(item.matchScore);
     message += `${index + 1}. ${stockEmoji} <b>${escapeHtml(item.medicineName)}</b>${rareTag}\n`;
-    message += `   Use case: ${escapeHtml(formatUseCase(item, intent))}\n`;
+    message += `   Use: ${escapeHtml(formatUseCase(item, intent))}\n`;
 
     if (item.genericName) {
       message += `   Salt: <i>${escapeHtml(item.genericName)}</i>\n`;
@@ -113,26 +118,27 @@ const formatSearchResults = (results, query, context = {}) => {
 
     if (item.knowledgeOnly) {
       message += `   Availability: <i>Known medicine, live stock not confirmed yet</i>${rxTag}\n`;
-      message += `   Confidence: Knowledge match\n`;
+      message += `   Confidence: ${escapeHtml(matchConfidence)} knowledge\n`;
     } else {
       message += `   💊 ${formatPrice(item.price, item.unit)}${rxTag}\n`;
-      message += `   Confidence: ${formatAvailabilityConfidence(item.matchScore)}\n`;
+      message += `   Confidence: ${escapeHtml(matchConfidence)}\n`;
     }
-    message += `   🏪 <b>${escapeHtml(item.pharmacy.name)}</b> — ${escapeHtml(item.pharmacy.area)}\n`;
-    message += `   📍 ${escapeHtml(item.pharmacy.address)}\n`;
+    message += `<blockquote expandable>`;
+    message += `🏪 <b>${escapeHtml(item.pharmacy.name)}</b> — ${escapeHtml(item.pharmacy.area)}\n`;
+    message += `📍 ${escapeHtml(item.pharmacy.address)}\n`;
 
     if (item.pharmacy.phone) {
-      message += `   📞 ${escapeHtml(item.pharmacy.phone)}\n`;
+      message += `📞 ${escapeHtml(item.pharmacy.phone)}\n`;
     }
     if (item.pharmacy.whatsapp) {
-      message += `   💬 WhatsApp: ${escapeHtml(item.pharmacy.whatsapp)}\n`;
+      message += `💬 WhatsApp: ${escapeHtml(item.pharmacy.whatsapp)}\n`;
     }
 
     if (!item.knowledgeOnly) {
-      message += `   🕐 ${escapeHtml(item.pharmacy.hours)}\n`;
-      message += `   🔄 Verified: ${formatVerifiedTime(item.lastVerified)}\n`;
+      message += `🕐 ${escapeHtml(item.pharmacy.hours)}\n`;
+      message += `🔄 Verified: ${formatVerifiedTime(item.lastVerified)}\n`;
     }
-    message += `\n`;
+    message += `</blockquote>\n`;
   });
 
   if (hasMore) {
@@ -185,13 +191,37 @@ const formatSearchResults = (results, query, context = {}) => {
   return message;
 };
 
+const buildSearchActionKeyboard = (query) => ({
+  inline_keyboard: [
+    [
+      { text: "📍 Nearby", callback_data: `nearby_medicine:${String(query).substring(0, 48)}` },
+      { text: "⚠️ Side Effects", callback_data: `details:side:${String(query).substring(0, 45)}` },
+    ],
+    [
+      { text: "🔁 Alternatives", callback_data: `details:alt:${String(query).substring(0, 45)}` },
+      { text: "💾 Save", callback_data: `save_search:${String(query).substring(0, 48)}` },
+    ],
+    [
+      { text: "🔄 Search Again", callback_data: "prompt_search" },
+      { text: "👨‍👩‍👧 Family", callback_data: "family:open" },
+    ],
+  ],
+});
+
 /**
  * Format a "not found" message with SOS prompt.
  */
-const formatNotFound = (query) => {
+const formatNotFound = (query, suggestions = []) => {
+  const suggestionList = suggestions
+    .slice(0, 3)
+    .map((item) => item.medicineName || item.genericName || item.brands?.[0])
+    .filter(Boolean);
   return (
     `😔 <b>No results for "${escapeHtml(query)}"</b>\n\n` +
     `This medicine wasn't found in our database.\n\n` +
+    (suggestionList.length
+      ? `Did you mean: ${suggestionList.map((name) => `<b>${escapeHtml(name)}</b>`).join(", ")}?\n\n`
+      : "") +
     `You can:\n` +
     `• Try a different spelling or generic name\n` +
     `• Use /sos to raise an alert — our network will help locate it!\n` +
@@ -228,14 +258,16 @@ const formatWelcome = (firstName) => {
   return (
     `🏥 <b>MediFast AI</b>\n\n` +
     `Namaste ${escapeHtml(firstName || "there")}! 🙏\n\n` +
-    `India-first medicine assistant for Telegram. Search in English, Hindi, or Hinglish and find pharmacy availability fast.\n\n` +
-    `<b>How to use:</b>\n` +
-    `• Type a medicine or symptom: <code>bukhar ki tablet</code>, <code>sar dard</code>, <code>gas acidity</code>\n` +
-    `• /search <i>medicine name</i> — search directly\n` +
-    `• /family — save family profiles\n` +
-    `• /nearby — browse or share location\n` +
-    `• /sos <i>medicine name</i> — raise an alert\n` +
-    `• /help — all commands\n\n` +
+    `Fast medicine search, family memory, and nearby pharmacy discovery for India.\n\n` +
+    `<b>Setup takes 20 seconds:</b>\n` +
+    `1. Choose language\n` +
+    `2. Share location for nearby pharmacies\n` +
+    `3. Add family members if you want refill memory\n\n` +
+    `<blockquote expandable><b>Try:</b>\n` +
+    `• <code>Dolo 650 near me</code>\n` +
+    `• <code>Papa has BP and needs fever medicine</code>\n` +
+    `• <code>side effects of Pregabalin</code>\n` +
+    `• <code>reorder papa medicine</code></blockquote>\n\n` +
     `<i>${MEDICAL_DISCLAIMER}</i>`
   );
 };
@@ -319,7 +351,46 @@ const formatReorderPrompt = (member, recent) => {
   );
 };
 
+const formatMemorySaved = ({ member, facts = [], query = "" } = {}) => {
+  const factText = facts
+    .slice(0, 4)
+    .map((fact) => `${fact.entity || "self"}: ${fact.value}`)
+    .join("\n");
+  return (
+    `🧠 <b>Saved to family memory</b>\n\n` +
+    (member ? `For: <b>${escapeHtml(member.name)}</b>\n` : "") +
+    (factText ? `<blockquote expandable>${escapeHtml(factText)}</blockquote>\n` : "") +
+    `Next time you can ask: <code>medicine for ${escapeHtml(member?.relation || "papa")}</code> or <code>reorder ${escapeHtml(member?.relation || "papa")} medicine</code>.\n\n` +
+    `<i>${MEDICAL_DISCLAIMER}</i>`
+  );
+};
+
+const formatProductionHealth = (report = {}) => {
+  const status = report.status || {};
+  const catalog = report.catalog || {};
+  const memory = report.memory || {};
+  const rag = report.rag || {};
+  const llm = report.llm || {};
+  const pharmacy = report.pharmacy || {};
+  const deadCode = report.deadCode || {};
+  return (
+    `🩺 <b>MediFast Production Health</b>\n\n` +
+    `Catalog: <b>${escapeHtml(status.catalog || "unknown")}</b> · ${catalog.coveragePercent || 0}% vector coverage\n` +
+    `Vectors: <b>${escapeHtml(status.vectors || "unknown")}</b> · ${catalog.vectorizedChunks || rag.vectorCount || 0} chunks\n` +
+    `Memory: <b>${escapeHtml(status.memory || "unknown")}</b> · ${memory.storedFacts || 0} facts\n` +
+    `RAG: <b>${escapeHtml(status.rag || "unknown")}</b> · ${rag.retrievalHits || 0} sample hits\n` +
+    `LLM: <b>${escapeHtml(status.llm || "unknown")}</b> · ${escapeHtml(llm.provider || "deterministic")}\n` +
+    `Pharmacy: <b>${escapeHtml(status.pharmacy || "unknown")}</b> · ${pharmacy.pharmacyCount || 0} active\n\n` +
+    `<blockquote expandable>Catalog completion: ${catalog.progressCompletionPercent || 0}%\n` +
+    `Remaining records: ${catalog.remainingRecords || 0}\n` +
+    `Geo-ready pharmacies: ${pharmacy.geoReadyCount || pharmacy.coordinatesCount || 0}\n` +
+    `Real data active: ${pharmacy.realDataActive ? "yes" : "no"}\n` +
+    `Dead-code candidates: ${deadCode.candidateCount || 0}</blockquote>`
+  );
+};
+
 module.exports = {
+  buildSearchActionKeyboard,
   formatSearchResults,
   formatNotFound,
   formatSosConfirm,
@@ -329,6 +400,9 @@ module.exports = {
   formatFamilyMenu,
   formatAddMemberPrompt,
   formatMembers,
+  formatMemorySaved,
+  formatProductionHealth,
   formatReorderPrompt,
+  formatConfidencePercent,
   escapeHtml,
 };

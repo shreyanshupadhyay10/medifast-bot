@@ -130,6 +130,20 @@ const createKnowledgeIndex = (records = []) => {
   };
 };
 
+const compactSuggestion = (record = {}, confidence = 0) => ({
+  medicineName: record.medicineName,
+  genericName: record.genericName,
+  brands: (record.brands || []).slice(0, 3),
+  aliases: (record.aliases || []).slice(0, 3),
+  category: record.category,
+  confidence: Math.max(0, Math.min(1, confidence)),
+});
+
+const suggestMedicines = (index, query, limit = 3) =>
+  (index?.fuse?.search(query) || [])
+    .slice(0, limit)
+    .map(({ item, score }) => compactSuggestion(item, Math.max(0, Math.min(1, 1 - (score || 0)))));
+
 const rebuildMedicineKnowledgeIndex = async (records = null) => {
   const sourceRecords =
     records || (await MedicineKnowledge.find().limit(Number(process.env.MEDICINE_KNOWLEDGE_INDEX_LIMIT || 300000)).lean());
@@ -152,12 +166,17 @@ const getMedicineKnowledgeIndex = async () => {
 };
 
 const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const compactRegexFor = (value = "") => {
+  const compact = normalizeQuery(value).replace(/\s+/g, "");
+  if (compact.length < 4 || compact.length > 40) return null;
+  return new RegExp(`^${compact.split("").map(escapeRegex).join("[\\s-]*")}$`, "i");
+};
 
 const findDirectMedicineMatch = async (query) => {
   const normalized = String(query || "").trim();
   if (!normalized || normalized.length < 2) return null;
   const exact = new RegExp(`^${escapeRegex(normalized)}$`, "i");
-  return MedicineKnowledge.findOne({
+  const direct = await MedicineKnowledge.findOne({
     $or: [
       { medicineName: exact },
       { genericName: exact },
@@ -169,6 +188,83 @@ const findDirectMedicineMatch = async (query) => {
   })
     .sort({ confidence: -1, sourceKind: -1, updatedAt: -1 })
     .lean();
+  if (direct) return direct;
+
+  const compact = compactRegexFor(normalized);
+  if (!compact) return null;
+  return MedicineKnowledge.findOne({
+    $or: [
+      { medicineName: compact },
+      { genericName: compact },
+      { salts: compact },
+      { brands: compact },
+      { aliases: compact },
+      { commonSpellings: compact },
+    ],
+  })
+    .sort({ confidence: -1, sourceKind: -1, updatedAt: -1 })
+    .lean();
+};
+
+const findTextMedicineCandidates = async (query, limit = Number(process.env.MEDICINE_TEXT_CANDIDATE_LIMIT || 25)) => {
+  const search = normalizeQuery(query)
+    .split(" ")
+    .filter((token) => token.length >= 3)
+    .join(" ");
+  if (!search) return [];
+  try {
+    return MedicineKnowledge.find(
+      { $text: { $search: search } },
+      { score: { $meta: "textScore" } }
+    )
+      .sort({ score: { $meta: "textScore" }, confidence: -1 })
+      .limit(limit)
+      .lean();
+  } catch {
+    return [];
+  }
+};
+
+const matchAgainstRecords = async (query, records = []) => {
+  const index = createKnowledgeIndex(records);
+  if (!index.records.length) return null;
+  const matcherResult = await matchMedicine(
+    {
+      medicineName: query,
+      genericName: query,
+      brands: [query],
+    },
+    index.matcher,
+    {
+      useFuzzy: true,
+      useSemantic:
+        process.env.LIVE_MEDICINE_SEMANTIC_MATCHING === "true" &&
+        process.env.ENABLE_SLOW_SEMANTIC_MATCHING === "true",
+    }
+  );
+
+  if (matcherResult.confidence >= 0.55 && matcherResult.medicines[0]) {
+    return {
+      type: "medicine",
+      normalizedQuery: matcherResult.medicines[0].genericName || matcherResult.medicines[0].medicineName,
+      medicine: matcherResult.medicines[0],
+      confidence: matcherResult.confidence,
+      reason: matcherResult.reason,
+      method: matcherResult.method,
+      usedSemantic: matcherResult.usedSemantic,
+    };
+  }
+
+  const suggestions = suggestMedicines(index, query);
+  return {
+    type: "unknown",
+    normalizedQuery: query,
+    confidence: suggestions[0]?.confidence || matcherResult.confidence || 0,
+    reason: suggestions.length ? "candidate suggestions below confidence threshold" : "no candidate match",
+    method: matcherResult.method,
+    usedSemantic: matcherResult.usedSemantic,
+    suggestions,
+  };
 };
 
 const normalizeMedicineQuery = async (query, { records = null } = {}) => {
@@ -208,6 +304,22 @@ const normalizeMedicineQuery = async (query, { records = null } = {}) => {
         confidence: 0.96,
         reason: "direct knowledge match",
         method: "mongo-direct",
+      };
+    }
+
+    const candidateRecords = await findTextMedicineCandidates(query);
+    if (candidateRecords.length) {
+      const candidateResult = await matchAgainstRecords(query, candidateRecords);
+      if (candidateResult?.type === "medicine" || process.env.ENABLE_FULL_MEDICINE_INDEX !== "true") {
+        return candidateResult;
+      }
+    } else if (process.env.ENABLE_FULL_MEDICINE_INDEX !== "true") {
+      return {
+        type: "unknown",
+        normalizedQuery: query,
+        confidence: 0,
+        reason: "no direct or text candidate match",
+        suggestions: [],
       };
     }
   }
@@ -256,6 +368,7 @@ const normalizeMedicineQuery = async (query, { records = null } = {}) => {
       normalizedQuery: query,
       confidence: 0,
       reason: "no fuzzy match",
+      suggestions: suggestMedicines(index, query),
     };
   }
 
@@ -266,6 +379,7 @@ const normalizeMedicineQuery = async (query, { records = null } = {}) => {
       normalizedQuery: query,
       confidence,
       reason: "low confidence fuzzy match",
+      suggestions: suggestMedicines(index, query),
     };
   }
 
@@ -287,10 +401,12 @@ module.exports = {
   clearMedicineKnowledgeIndex,
   emptyToNull,
   findDirectMedicineMatch,
+  findTextMedicineCandidates,
   medicineKeyFor,
   normalizeMedicineQuery,
   normalizeMedicineRecord,
   normalizeSideEffectEntry,
   rebuildMedicineKnowledgeIndex,
+  suggestMedicines,
   sideEffectText,
 };

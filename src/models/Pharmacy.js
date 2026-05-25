@@ -58,6 +58,18 @@ const pharmacySchema = new mongoose.Schema(
       max: 1,
       default: 0.75,
     },
+    popularityScore: {
+      type: Number,
+      min: 0,
+      max: 1,
+      default: 0,
+    },
+    searchSuccessScore: {
+      type: Number,
+      min: 0,
+      max: 1,
+      default: 0,
+    },
     source: {
       type: String,
       trim: true,

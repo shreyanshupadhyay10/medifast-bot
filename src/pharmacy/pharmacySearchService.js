@@ -2,10 +2,13 @@ const Pharmacy = require("../models/Pharmacy");
 const PharmacySearchHistory = require("../models/PharmacySearchHistory");
 const eventBus = require("../events/eventBus");
 const { normalizeCoordinates } = require("./pharmacyLocationService");
+const { importPharmaciesNearLocation } = require("./sources/sourceManager");
+const logger = require("../utils/logger");
 
 const DEFAULT_RADIUS_KM = Number(process.env.NEARBY_RADIUS_KM || 5);
 const EXPANDED_RADIUS_KM = Number(process.env.NEARBY_MAX_RADIUS_KM || 10);
 const MIN_RESULTS = Number(process.env.NEARBY_MIN_RESULTS || 3);
+const LIVE_OSM_LOOKUP = () => process.env.OSM_LIVE_LOOKUP !== "false";
 
 let indexEnsured = false;
 
@@ -62,16 +65,38 @@ const searchNearbyPharmacies = async ({ latitude, longitude, radiusKm = DEFAULT_
     expandedRadius = true;
   }
 
+  let osmHydrated = false;
+  if (!pharmacies.length && LIVE_OSM_LOOKUP()) {
+    try {
+      const importRadiusKm = Math.max(radiusKm, Number(process.env.OSM_LIVE_RADIUS_KM || radiusKm));
+      const summary = await importPharmaciesNearLocation({
+        latitude: location.latitude,
+        longitude: location.longitude,
+        radiusKm: importRadiusKm,
+        cityName: "Live Location",
+      });
+      osmHydrated = summary.importedPharmacyCount > 0 || summary.validRecords > 0;
+      if (osmHydrated) {
+        pharmacies = await findWithinRadius({ ...location, radiusKm: importRadiusKm });
+        radiusKm = importRadiusKm;
+      }
+    } catch (error) {
+      logger.warn(`Live OSM pharmacy lookup skipped: ${error.message}`);
+    }
+  }
+
   eventBus.emitSafe("pharmacy.location.search.completed", {
     resultCount: pharmacies.length,
     radiusKm,
     expandedRadius,
+    osmHydrated,
   });
 
   return {
     pharmacies,
     radiusKm,
     expandedRadius,
+    osmHydrated,
     geoReady: pharmacies.length > 0,
   };
 };

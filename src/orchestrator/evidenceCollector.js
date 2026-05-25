@@ -36,7 +36,11 @@ const compactRag = (knowledge = {}) =>
     text: String(item.text || "").slice(0, 700),
     confidence: item.confidence || item.score || null,
     source: item.metadata?.source || null,
+    sourceType: item.metadata?.sourceType || null,
+    medicine: item.metadata?.medicine || null,
+    generic: item.metadata?.generic || null,
     category: item.metadata?.category || null,
+    sideEffects: item.metadata?.sideEffects || null,
     trust: item.metadata?.trust || null,
   }));
 
@@ -48,6 +52,11 @@ const compactPharmacies = (nearby = {}) =>
     address: pharmacy.address,
     confidence: pharmacy.confidence,
     inventoryConfidence: pharmacy.inventoryConfidence,
+    medicineConfidence: pharmacy.medicineConfidence,
+    openStatus: pharmacy.openStatus,
+    source: pharmacy.source,
+    popularityScore: pharmacy.popularityScore,
+    searchSuccessScore: pharmacy.searchSuccessScore,
   }));
 
 const collectEvidence = ({ query = "", plan = {}, toolResults = {} } = {}) => {
@@ -77,10 +86,12 @@ const collectEvidence = ({ query = "", plan = {}, toolResults = {} } = {}) => {
       confidence: memoryResult.confidence || 0,
     },
     pharmacyContext: {
-      source: nearbyResult.ranked ? "Mongo Geo" : null,
+      source: nearbyResult.osmHydrated ? "Mongo Geo + OpenStreetMap live refresh" : nearbyResult.ranked ? "Mongo Geo" : null,
       radiusKm: nearbyResult.radiusKm || null,
       expandedRadius: Boolean(nearbyResult.expandedRadius),
+      osmHydrated: Boolean(nearbyResult.osmHydrated),
       inventoryMatchCount: nearbyResult.inventoryMatchCount || 0,
+      confidenceQuality: nearbyResult.confidenceQuality || 0,
       pharmacies: compactPharmacies(nearbyResult),
     },
     ragContext: {

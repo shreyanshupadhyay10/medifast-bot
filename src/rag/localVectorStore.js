@@ -95,6 +95,17 @@ class LocalVectorCollection {
   async count() {
     return this.read().records.length;
   }
+
+  async get({ where = {}, limit = 100, offset = 0, include = ["metadatas", "documents"] } = {}) {
+    const data = this.read();
+    const records = (data.records || []).filter((record) => metadataMatches(record.metadata, where));
+    const page = records.slice(offset, offset + limit);
+    return {
+      ids: page.map((record) => record.id),
+      documents: include.includes("documents") ? page.map((record) => record.document) : undefined,
+      metadatas: include.includes("metadatas") ? page.map((record) => record.metadata) : undefined,
+    };
+  }
 }
 
 const getLocalCollection = async ({ name, storagePath } = {}) => new LocalVectorCollection({ name, storagePath });

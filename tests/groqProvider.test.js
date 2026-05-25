@@ -39,6 +39,39 @@ test("Groq provider uses evidence prompt and Scout default model", async (t) => 
   assert.equal(result.ok, true);
   assert.match(requestBody.messages[1].content, /Structured evidence/);
   assert.match(requestBody.messages[0].content, /Never invent medicines/);
+  assert.match(requestBody.messages[0].content, /Do not output source URLs/);
+});
+
+test("Groq provider removes invented source URLs and confidence lines", async (t) => {
+  const originalFetch = global.fetch;
+  const originalKey = process.env.GROQ_API_KEY;
+
+  process.env.GROQ_API_KEY = "test-key";
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [
+        {
+          message: {
+            content: "Answer from evidence.\nSources:\nhttps://example.com/invented\nConfidence: 0.99",
+          },
+        },
+      ],
+    }),
+  });
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.GROQ_API_KEY;
+    else process.env.GROQ_API_KEY = originalKey;
+  });
+
+  const result = await new GroqProvider().generate({
+    prompt: "side effects",
+    evidence: { ragContext: { sources: [{ source: "MedicineKnowledge" }] } },
+  });
+
+  assert.equal(result.text, "Answer from evidence.");
 });
 
 test("Groq provider falls back safely when API key is missing", async (t) => {

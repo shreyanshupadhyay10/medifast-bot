@@ -37,6 +37,9 @@ const registerAnalyticsListener = (eventBus) => {
   eventBus.on("pharmacy.ranking.completed", (payload) => {
     logger.info(`Analytics event pharmacy.ranking.completed results=${payload.resultCount} inventory=${payload.inventoryMatchCount}`);
     record("pharmacy.ranking.completed", payload);
+    if (payload.estimatedConfidenceUsed) {
+      record("pharmacy.confidence.estimated", payload);
+    }
   });
 
   eventBus.on("retrieval.completed", ({ type, query, hitCount, error }) => {
@@ -49,6 +52,16 @@ const registerAnalyticsListener = (eventBus) => {
       `Analytics event orchestration.completed tools=${payload.toolCount || 0} provider=${payload.provider || "unknown"} latency=${payload.orchestrationLatencyMs || 0}ms`
     );
     record("orchestration.completed", payload);
+  });
+
+  eventBus.on("side_effect.query", (payload) => {
+    logger.info(`Analytics event side_effect.query medicine="${payload.medicine || "unknown"}"`);
+    record("side_effect.query", payload);
+  });
+
+  eventBus.on("llm.groq.used", (payload) => {
+    logger.info(`Analytics event llm.groq.used ok=${payload.ok} latency=${payload.latencyMs || 0}ms`);
+    record("llm.groq.used", payload);
   });
 
   eventBus.on("medicine.lookup.failed", ({ telegramId, query, normalizedQuery, intentKey }) => {
@@ -69,6 +82,11 @@ const registerAnalyticsListener = (eventBus) => {
   eventBus.on("medicine.import.completed", (payload) => {
     logger.info(`Analytics event medicine.import.completed imported=${payload.importedMedicineCount}`);
     record("medicine.import.completed", payload);
+  });
+
+  eventBus.on("medicine.duplicates.cleanup.completed", (payload) => {
+    logger.info(`Analytics event medicine.duplicates.cleanup.completed removals=${payload.duplicateRemovals}`);
+    record("medicine.duplicates.cleanup.completed", payload);
   });
 
   eventBus.on("medicine.knowledge.enrichment.completed", (payload) => {

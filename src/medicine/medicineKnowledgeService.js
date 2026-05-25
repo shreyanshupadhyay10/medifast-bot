@@ -8,6 +8,33 @@ const LOW_CONFIDENCE_THRESHOLD = Number(process.env.MEDICINE_KNOWLEDGE_CONFIDENC
 const searchMedicineKnowledge = async ({ query, records = null }) => {
   const normalized = await normalizeMedicineQuery(query, { records });
 
+  if (normalized.type === "category" && !records) {
+    const categoryMedicine = await MedicineKnowledge.findOne({
+      category: { $regex: `^${normalized.normalizedQuery}$`, $options: "i" },
+    })
+      .sort({ confidence: -1, updatedAt: -1 })
+      .lean();
+    if (categoryMedicine) {
+      const relationships = buildRelationships(categoryMedicine);
+      eventBus.emitSafe("medicine.knowledge.normalized", {
+        query,
+        normalizedQuery: normalized.normalizedQuery,
+        confidence: normalized.confidence,
+        type: "category",
+        reason: normalized.reason,
+        relationshipCount: relationships.length,
+      });
+      return {
+        medicine: categoryMedicine,
+        alternatives: await findRelatedMedicines(categoryMedicine),
+        relationships,
+        confidence: normalized.confidence,
+        suggestions: [],
+        message: null,
+      };
+    }
+  }
+
   if (normalized.confidence < LOW_CONFIDENCE_THRESHOLD || normalized.type === "unknown") {
     eventBus.emitSafe("medicine.knowledge.unknown", {
       query,
@@ -15,18 +42,20 @@ const searchMedicineKnowledge = async ({ query, records = null }) => {
       reason: normalized.reason,
       method: normalized.method,
       usedSemantic: normalized.usedSemantic,
+      suggestions: normalized.suggestions || [],
     });
     return {
       medicine: null,
       alternatives: [],
       relationships: [],
       confidence: normalized.confidence,
+      suggestions: normalized.suggestions || [],
       message: "I could not confidently identify this medicine.",
     };
   }
 
   const medicine =
-    normalized.medicine?._id
+    normalized.medicine?._id || normalized.reason === "curated alias"
       ? normalized.medicine
       : records
         ? null
@@ -38,7 +67,7 @@ const searchMedicineKnowledge = async ({ query, records = null }) => {
           ],
         }).lean();
 
-  const alternatives = medicine ? await findRelatedMedicines(medicine) : [];
+  const alternatives = medicine?._id ? await findRelatedMedicines(medicine) : [];
   const relationships = buildRelationships(medicine || normalized.medicine || {});
 
   eventBus.emitSafe("medicine.knowledge.normalized", {
@@ -58,6 +87,7 @@ const searchMedicineKnowledge = async ({ query, records = null }) => {
     alternatives,
     relationships,
     confidence: normalized.confidence,
+    suggestions: normalized.suggestions || [],
     message: null,
   };
 };

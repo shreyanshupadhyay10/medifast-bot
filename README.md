@@ -1,427 +1,170 @@
 # MediFast AI
 
-India-first medicine assistant for Telegram.
+**India-first AI medicine assistant for intelligent medicine understanding, contextual healthcare assistance, and nearby pharmacy discovery.**
 
-MediFast AI helps users search medicines, understand simple Hindi/Hinglish symptom queries, manage family medicine needs, discover nearby pharmacies, and reuse medicine history safely.
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-Database-47A248?logo=mongodb&logoColor=white)
+![Groq](https://img.shields.io/badge/Groq-LLM%20Provider-F55036)
+![LangChain](https://img.shields.io/badge/LangChain-RAG-1C3C3C)
+![Chroma](https://img.shields.io/badge/Chroma-Vector%20DB-5B5BD6)
+![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4?logo=telegram&logoColor=white)
+![RAG](https://img.shields.io/badge/RAG-Evidence%20Retrieval-6B46C1)
+![AI](https://img.shields.io/badge/AI-Evidence%20Based-111827)
 
-This project started as a Jaipur medicine availability Telegram bot. It has now been upgraded into a production-safe MVP with AI-ready architecture, medicine knowledge, side-effect enrichment, semantic retrieval, and real nearby pharmacy discovery.
+MediFast AI turns a Telegram medicine bot into a product-grade healthcare assistant for India. It understands medicine brands, generics, salts, Hinglish symptom queries, family context, side effects, and nearby pharmacies while keeping deterministic systems as the source of truth.
 
-Medical safety note: this bot helps users discover medicine information and pharmacy availability. It is not a replacement for a doctor.
+Medical safety note: MediFast helps users discover medicine information and nearby pharmacy options. It is not a replacement for a doctor.
 
-## What The Bot Can Do
+## Overview
 
-- Search medicines from live pharmacy inventory.
-- Understand Hinglish and Hindi style queries like `bukhar ki tablet`, `sar dard`, `gas acidity`, and `Dolo near me`.
-- Recognize Indian brand names, salts, aliases, and common spellings.
-- Store family profiles for people like papa, mummy, child, or senior family members.
-- Suggest repeat/reorder flows using recent search history.
-- Use Telegram shared location to find nearby pharmacies.
-- Rank pharmacies by distance, inventory match, and confidence.
-- Import Jaipur pharmacy POIs from OpenStreetMap into MongoDB.
-- Expand the same pharmacy import system to Delhi, Mumbai, Kota, and more cities.
-- Keep medicine inventory separate from medicine knowledge.
-- Import large Indian medicine datasets into MongoDB.
-- Enrich medicine records with side-effect data from trusted CSV files.
-- Store unmatched/low-confidence enrichment rows separately for review.
-- Run RAG over trusted knowledge files using Chroma.
-- Store structured conversation memory and semantic memory.
-- Synthesize answers with an evidence-only Groq/Llama provider. The LLM is not the medical source of truth.
-- Track analytics for searches, retrieval, pharmacy usage, imports, and enrichment.
-- Diagnose whether real medicine and pharmacy datasets are active in production.
-- Activate real data with one command: medicine enrichment, Jaipur OSM import, and demo pharmacy cleanup.
-- Run a lightweight orchestrator that executes existing tools, merges results, and applies safety.
-- Keep deterministic search and safety guardrails as the default.
+MediFast AI is built for fast, local, family-friendly medicine discovery:
 
-## Important Telegram Name Note
+- Search Indian medicines by brand, generic, salt, alias, typo, or no-space names.
+- Understand Hinglish and Hindi-style queries like `bukhar ki tablet`, `sar dard`, and `gas acidity`.
+- Find nearby pharmacies using Telegram shared location and MongoDB geospatial search.
+- Preserve family context such as father has BP or mother has acidity.
+- Retrieve trusted medicine knowledge with RAG.
+- Use Groq/Llama only for evidence-based response synthesis, not as a medical source of truth.
+- Provide diagnostics, runtime tracing, analytics, and production health checks.
 
-The public Telegram bot name is controlled in BotFather, not in this repo.
+## Features
 
-If Telegram still shows `jaipu medicine bot`, rename it in BotFather:
+- **Medicine intelligence:** brand to generic matching, salt matching, fuzzy matching, aliases, common spellings, and semantic fallback.
+- **Large catalog support:** import and normalize large Indian medicine datasets into `MedicineKnowledge`.
+- **Knowledge graph:** relationships for brand, generic, symptom, side effect, category, manufacturer, alternative, and refill behavior.
+- **Side-effect enrichment:** merge trusted side-effect CSV data into the medicine catalog.
+- **Hinglish smart search:** maps phrases like `bukhar`, `khansi`, `pet dard`, `gas`, and `ulti` to useful search intents.
+- **Family profiles:** store family members, conditions, medicines, and reorder patterns.
+- **Semantic memory:** retrieve useful past family facts during future conversations.
+- **Nearby pharmacy discovery:** uses Telegram location, MongoDB `2dsphere` queries, ranking, OSM import, and live fallback-ready services.
+- **Evidence-based orchestration:** router, tool registry, evidence collector, Groq provider, safety guard, and Telegram formatter.
+- **RAG:** Chroma or local vector mode over trusted knowledge files and activated medicine knowledge.
+- **Admin readiness:** `/health`, `/analytics`, `/status`, `/runtime`, `/trace`, `/nearby-debug`, and `/admindebug`.
+- **Production diagnostics:** medicine, catalog, RAG, LLM, memory, pharmacy, and full health checks.
+
+## Architecture Diagram
+
+![MediFast architecture](assets/readme/architecture-diagram.png)
+
+```mermaid
+flowchart TD
+  A["Telegram / future WhatsApp"] --> B["Bot handlers"]
+  B --> C["Entity extractor"]
+  C --> D["Ranked router"]
+  D --> E["Tool registry"]
+  E --> F["Medicine knowledge"]
+  E --> G["Fuse.js inventory"]
+  E --> H["Semantic memory"]
+  E --> I["RAG retrieval"]
+  E --> J["Pharmacy intelligence"]
+  E --> K["Family profiles"]
+  F --> L["Evidence collector"]
+  G --> L
+  H --> L
+  I --> L
+  J --> L
+  K --> L
+  L --> M["Groq / local LLM provider"]
+  M --> N["Safety guard"]
+  N --> O["Telegram response formatter"]
+```
+
+## How It Works
+
+![MediFast workflow](assets/readme/workflow-diagram.png)
+
+1. User sends a Telegram message.
+2. Entity extractor identifies medicine, symptom, person, location intent, side-effect intent, and reorder intent.
+3. Router returns ranked tool decisions.
+4. Tool executor calls deterministic systems such as MedicineKnowledge, Fuse.js search, RAG, memory, family, and pharmacy services.
+5. Evidence collector builds a structured evidence packet.
+6. Groq can synthesize a clean answer when enabled.
+7. Safety guard checks confidence and medical risk.
+8. Formatter sends a compact Telegram response with action buttons.
+
+## Medicine Intelligence
+
+MediFast keeps inventory and knowledge separate:
+
+- `Inventory`: stock, price, pharmacy, and availability.
+- `MedicineKnowledge`: name, generic, salts, brands, aliases, category, symptoms, side effects, precautions, and relationships.
+
+Matching order:
 
 ```text
-/setname
+exact match
+  -> alias match
+  -> brand match
+  -> salt match
+  -> fuzzy match
+  -> semantic match
+  -> clarification
 ```
 
-The code and README now call the product `MediFast AI`.
-
-## Main Upgrade Summary
-
-### 1. AI-Ready Router
-
-The bot now has a ranked router instead of one hard route.
-
-Example:
-
-```js
-[
-  { tool: "family", confidence: 0.91 },
-  { tool: "medicine", confidence: 0.88 },
-  { tool: "memory", confidence: 0.84 },
-  { tool: "nearby", confidence: 0.80 }
-]
-```
-
-This keeps the current system fast and deterministic, while making future LangChain or open-source LLM orchestration easier.
-
-### Evidence-Based LLM Orchestration
-
-MediFast can use Groq with Llama 4 Scout for response synthesis:
-
-```env
-LLM_PROVIDER=groq
-ENABLE_LLM_SYNTHESIS=false
-GROQ_API_KEY=
-GROQ_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
-GROQ_TIMEOUT_MS=4500
-```
-
-The LLM receives only structured evidence from deterministic tools:
-
-- medicine knowledge and relationship graph matches
-- semantic memory facts
-- RAG retrieval snippets and source metadata
-- nearby pharmacy rankings from Mongo geospatial search
-- confidence scores and safety flags
-
-It must not invent medicines, pharmacy availability, side effects, or dosages. If confidence is low, it asks for clarification.
-
-For the fastest Telegram demo, keep `ENABLE_LLM_SYNTHESIS=false`. This still runs routing, medicine knowledge, RAG retrieval, semantic memory, and pharmacy intelligence, but skips LLM response text in normal searches. Turn it on only when you want evidence-based answer synthesis.
-
-### 2. Entity Extraction
-
-The bot extracts useful entities from user text:
-
-```js
-{
-  person: "papa",
-  symptom: "fever",
-  duration: "1 day",
-  medicine: "dolo",
-  nearbyIntent: true,
-  reorderIntent: false
-}
-```
-
-### 3. Hinglish And Hindi Search
-
-Examples users can type:
+Examples supported:
 
 ```text
-Sar dard ki dawa chaiye
-Bukhar ki tablet
-Pet dard medicine
-Khansi ke liye kuch
-Zukham dawa
-Fever medicine for child
-Gas acidity tablet
-Dolo near me
+Dolo 650
+Pregabalin
+Alprax
+Pantocid
+Telma AM
+MontekLC
+headache tablet
+bukhar ki tablet
+sugar medicine
 ```
 
-The intent engine maps common words like:
+## Nearby Pharmacy Intelligence
 
-```text
-sar dard -> headache
-bukhar -> fever
-khansi -> cough
-zukham -> cold
-pet dard -> stomach pain
-gas -> acidity
-ulti -> nausea
-```
-
-### 4. Family Profiles
-
-Users can save family members:
-
-```text
-/family
-/addmember
-/members
-/removeMember
-```
-
-Add a member:
-
-```text
-Papa|papa|senior|diabetes and BP
-```
-
-The schema supports:
-
-- name
-- relation
-- age group
-- notes
-- guardian name
-- guardian Telegram ID
-- guardian notification flag
-
-Example queries:
-
-```text
-papa fever medicine
-reorder papa medicine
-mom acidity tablet
-```
-
-### 5. Medicine Knowledge Layer
-
-Inventory and medicine knowledge are separate.
-
-```text
-Inventory = stock, price, quantity, pharmacy availability
-MedicineKnowledge = generic name, salts, brands, aliases, side effects, category, source
-```
-
-This lets the bot understand medicine names even when a local pharmacy inventory does not have every record.
-
-### 6. Indian Medicine Dataset Import
-
-The importer supports trusted CSV and JSON files.
-
-It auto-detects fields instead of assuming column names.
-
-For the uploaded Indian medicine dataset, it detected:
-
-```text
-name -> medicine name / brand
-short_composition1 -> salt
-short_composition2 -> salt
-manufacturer_name -> company
-type -> category
-```
-
-The dataset imported successfully into local MongoDB:
-
-```text
-Raw records: 253,973
-Valid records: 253,973
-Failed records: 0
-Duplicate removals: 2,937
-Imported/updated: 251,036
-```
-
-Run the importer:
-
-```bash
-npm run import-medicines -- "C:\Users\Ruchin Audichya\Desktop\Indian-Medicine-Dataset-main\DATA\indian_medicine_data.csv"
-```
-
-You can also drop trusted CSV/JSON files into:
-
-```text
-data/medicine-sources/
-```
-
-Then run:
-
-```bash
-npm run import-medicines
-```
-
-This repo also includes a curated general medicine pack:
-
-```text
-data/medicine-sources/general-essential-india-2026.json
-```
-
-It adds common India-first medicine names, salts, brands, spellings, and aliases across fever/pain, allergy/cold, cough, gastro, diabetes, BP/cardiac, antibiotics, dermatology, vitamins, eye/ear, women's health, and neurological categories.
-
-Import only this pack:
-
-```bash
-npm run import-medicines -- data/medicine-sources/general-essential-india-2026.json
-```
-
-### 7. Side-Effects Enrichment
-
-The side-effects enrichment pipeline uses a trusted CSV and merges side-effect text into existing `MedicineKnowledge` records.
-
-For the uploaded Drugs.com CSV, it detected:
-
-```json
-{
-  "medicineName": "drug_name",
-  "genericName": "generic_name",
-  "sideEffects": "side_effects",
-  "source": "drug_link",
-  "brand": "brand_names"
-}
-```
-
-Run enrichment:
-
-```bash
-npm run enrich-side-effects -- "C:\Users\Ruchin Audichya\Desktop\drugs_side_effects_drugs_com.csv"
-```
-
-Latest enrichment after match improvements:
-
-```text
-Matched records: 1,339
-Unmatched records: 1,592
-Match rate: 0.477
-Enriched medicine docs: 169,436
-Stored unmatched review rows: 1,045
-Side-effect entries: 681,776
-```
-
-Low-confidence rows are not guessed. They are stored in `UnmatchedMedicineEnrichment` for review.
-
-### 8. Medicine Matcher
-
-The matcher ranks medicine matches in this order:
-
-```text
-genericName
-salts
-brands
-aliases
-commonSpellings
-synonyms
-optional fuzzy matching
-optional semantic matching
-```
-
-Synonyms live in:
-
-```text
-data/medicineSynonyms.json
-```
-
-Run medicine enrichment:
-
-```bash
-npm run enrich-medicines
-```
-
-Run full real-data activation:
-
-```bash
-npm run activate-data
-```
-
-Examples:
-
-```text
-Tylenol -> Paracetamol
-Acetaminophen -> Paracetamol
-Azithral -> Azithromycin
-Accutane -> Isotretinoin
-```
-
-Fuzzy and semantic matching are available but off by default for big batch enrichment:
-
-```env
-SIDE_EFFECTS_FUZZY_MATCHING=false
-SIDE_EFFECTS_SEMANTIC_MATCHING=false
-MEDICINE_MATCHER_FUZZY_CANDIDATE_LIMIT=500
-```
-
-### 9. Real Nearby Pharmacy Discovery
-
-Users can run:
-
-```text
-/nearby
-```
-
-Or type:
-
-```text
-Dolo near me
-Crocin pharmacy nearby
-Azithral 500 near me
-```
-
-If the bot does not have location yet, it shows a Telegram `Share Location` button.
-
-Search flow:
-
-```text
-Telegram location
--> 5 km pharmacy search
--> expand to 10 km if too few results
--> inventory matching
--> ranking
--> response
-```
-
-Ranking formula:
-
-```text
-score = distanceScore * 0.5 + inventoryScore * 0.3 + pharmacyConfidence * 0.2
-```
-
-The response shows:
-
-- pharmacy name
-- distance
-- ranking score
-- inventory confidence
-- inventory matches
-- phone
-- address
-
-### 10. Jaipur Pharmacy Auto Import
-
-The bot can now build its own Jaipur pharmacy database from OpenStreetMap POIs.
+Nearby search uses real user coordinates from Telegram.
 
 Flow:
 
 ```text
-OpenStreetMap Overpass API
--> pharmacy POIs around Jaipur
--> validation
--> normalization
--> duplicate removal
--> MongoDB Pharmacy collection
--> 2dsphere index
--> analytics event
+Telegram location
+  -> Mongo geo query
+  -> 5 km search
+  -> 10 km expansion if needed
+  -> OSM fallback-ready source layer
+  -> pharmacy enrichment
+  -> ranking
+  -> response card
 ```
 
-Default city config lives in:
+Ranking considers:
 
-```text
-config/cities.js
-```
+- distance
+- inventory confidence
+- pharmacy confidence
+- popularity score
+- source quality
 
-Run Jaipur import:
+Returned result fields can include pharmacy name, phone, address, distance, open status, popularity score, inventory confidence, and source.
 
-```bash
-npm run import-pharmacies
-```
+## Semantic Memory
 
-Import another supported city:
+MediFast stores structured facts instead of plain chat logs:
 
-```bash
-npm run import-pharmacies -- Delhi
-npm run import-pharmacies -- Mumbai
-npm run import-pharmacies -- Kota
-```
-
-The importer stores source metadata on each pharmacy:
-
-```js
+```json
 {
-  source: "OpenStreetMap",
-  importedAt: Date,
-  trustLevel: "medium",
-  datasetVersion: "..."
+  "type": "condition",
+  "entity": "father",
+  "value": "BP",
+  "confidence": 0.9,
+  "source": "message"
 }
 ```
 
-No random website scraping is used.
+This allows flows like:
 
-Real OSM pharmacy data removes the known seeded demo pharmacies during activation/import, so nearby search uses Mongo geospatial results instead of demo examples.
-
-Validate active pharmacy data:
-
-```bash
-npm run diagnose-pharmacies
+```text
+User: Papa has BP and diabetes
+Later: medicine for papa
+Bot: uses family and memory context before responding
 ```
 
-### 11. RAG And Semantic Memory
+## RAG
 
 Knowledge files live in:
 
@@ -435,438 +178,271 @@ knowledge-base/
   faq/
 ```
 
-RAG flow:
+The RAG pipeline loads Markdown, PDF, and CSV files, chunks them, embeds them, stores vectors, retrieves context, reranks results, and passes evidence into the orchestrator.
+
+Vector modes:
+
+- Remote Chroma: set `CHROMA_URL=http://localhost:8000`
+- Local persistent mode: set `VECTOR_MODE=local` and use `data/chroma`
+
+## Knowledge Graph
+
+MediFast expands medicine relationships:
 
 ```text
-knowledge-base
--> document loader
--> chunker
--> local embeddings
--> Chroma
--> hybrid retriever
--> reranker
--> provider.generate()
+brand <-> generic
+medicine <-> symptom
+medicine <-> disease
+medicine <-> side effect
+medicine <-> category
+medicine <-> alternative
+medicine <-> refill pattern
+medicine <-> pharmacy demand
 ```
 
-Run knowledge ingestion:
+The graph improves normalizer confidence, nearby medicine confidence, and RAG retrieval.
 
-```bash
-npm run ingest
-```
+## Groq Orchestration
 
-Start Chroma locally first if using vector retrieval:
+Groq is optional and evidence-based.
 
-```bash
-docker run -p 8000:8000 chromadb/chroma
-```
+It can summarize and combine:
 
-Docker is optional. Without Docker, use embedded local vector storage:
+- medicine context
+- relationship graph context
+- semantic memory
+- RAG context
+- nearby pharmacy context
+- confidence scores
 
-```env
-VECTOR_MODE=local
-CHROMA_LOCAL_PATH=./data/chroma
-```
+It must not invent medicines, dosage, stock, or pharmacy availability.
 
-Check RAG status:
+## Screenshots
 
-```bash
-npm run diagnose-rag
-```
-
-### 12. Analytics
-
-Admin command:
+Screenshots can be added after Telegram testing:
 
 ```text
-/analytics
+assets/readme/screenshots/
+  welcome.png
+  medicine-search.png
+  nearby-pharmacy.png
+  side-effects.png
+  runtime-trace.png
 ```
 
-Tracks:
-
-- top medicines
-- top symptom intents
-- repeat searches
-- SOS trends
-- retrieval usage
-- medicine import stats
-- side-effect enrichment stats
-- nearby searches
-- location permissions
-- pharmacy ranking usage
-- inventory matches
-- latest pharmacy import
-- duplicate pharmacy removals
-- coordinate issues
-- medicine normalization confidence distribution
-- top unknown medicine queries
-
-## Project Structure
+## Example Telegram Conversations
 
 ```text
-src/
-  ai/
-    entityExtractor.js
-    router.js
-    safetyGuard.js
-    toolRegistry.js
-
-  bot/
-    commands/
-      admin.js
-      family.js
-      nearby.js
-      search.js
-      sos.js
-
-  cache/
-    medicineCache.js
-
-  events/
-    eventBus.js
-    listeners/
-
-  memory/
-    memorySummarizer.js
-    semanticMemory.js
-
-  medicine/
-    enrichment/
-      sideEffectsEnricher.js
-      sideEffectsMapper.js
-    matching/
-      confidenceScorer.js
-      medicineMatcher.js
-    sources/
-      datasetMerger.js
-      datasetValidator.js
-      fieldMapper.js
-      sourceManager.js
-    medicineImporter.js
-    medicineKnowledgeService.js
-    medicineNormalizer.js
-    medicineRelationshipService.js
-
-  pharmacy/
-    pharmacyAvailabilityService.js
-    pharmacyLocationService.js
-    pharmacyRankingService.js
-    pharmacyRecommendationService.js
-    pharmacySearchService.js
-    sources/
-      sourceManager.js
-      osmPharmacySource.js
-      datasetValidator.js
-      datasetNormalizer.js
-      datasetMerger.js
-
-  orchestrator/
-    orchestrator.js
-    workflowPlanner.js
-    toolExecutor.js
-    responseMerger.js
-
-  rag/
-    chunker.js
-    documentLoader.js
-    embeddingProvider.js
-    embeddings.js
-    evaluator.js
-    hybridRetriever.js
-    reranker.js
-    retriever.js
-
-  services/
-    analyticsService.js
-    familyService.js
-    historyService.js
-    intentEngine.js
-    memoryService.js
-    nearbyPharmacyService.js
-    ragService.js
-    searchService.js
-
-  models/
-    AnalyticsEvent.js
-    ConversationMemory.js
-    Inventory.js
-    MedicineKnowledge.js
-    Pharmacy.js
-    PharmacySearchHistory.js
-    RetrievalMetric.js
-    SearchHistory.js
-    SosRequest.js
-    UnmatchedMedicineEnrichment.js
-    UserProfile.js
+User: Dolo 650
+Bot: Found Dolo 650. Generic: Paracetamol. Category: Pain/Fever. Confidence: high.
+     Actions: Nearby | Side Effects | Alternatives | Save
 ```
 
-## Setup
+```text
+User: bukhar ki tablet
+Bot: I understood this as fever medicine search. I can show common fever-related options, but please consult a doctor for diagnosis or dosage.
+     Actions: Search Medicines | Nearby | Family
+```
 
-### 1. Install Dependencies
+```text
+User: Dolo near me
+Bot: Share your location to find nearby pharmacies.
+     Button: Share Location
+```
+
+```text
+User: side effects of Pregabalin
+Bot: Retrieved Pregabalin knowledge and side-effect context from the catalog/RAG. Please review with a doctor, especially for prescription medicines.
+```
+
+```text
+User: Papa has BP and diabetes
+Bot: Saved this as family context. I will use it for safer future medicine discovery.
+```
+
+## Installation
 
 ```bash
+git clone https://github.com/Ruchin-Audichya/medifast-bot.git
+cd medifast-bot
 npm install
 ```
 
-### 2. Create `.env`
+Use Node.js 18 or newer.
 
-Copy `.env.example` to `.env`:
+## Setup
+
+Create `.env` from `.env.example`:
 
 ```bash
-copy .env.example .env
+cp .env.example .env
 ```
 
-Fill in:
+For Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Start MongoDB locally or provide a hosted MongoDB URI.
+
+## Environment Variables
+
+Key groups:
 
 ```env
-TELEGRAM_BOT_TOKEN=your_token_from_botfather
+# Telegram
+TELEGRAM_BOT_TOKEN=
+
+# MongoDB
 MONGODB_URI=mongodb://localhost:27017/medifast
-PORT=3001
 
-NEARBY_RADIUS_KM=5
-NEARBY_MAX_RADIUS_KM=10
-NEARBY_MIN_RESULTS=3
-PHARMACY_IMPORT_CITY=Jaipur
-OVERPASS_URL=https://overpass-api.de/api/interpreter
-
-AI_PROVIDER=deterministic
+# Groq / LLM
 LLM_PROVIDER=groq
 ENABLE_LLM_SYNTHESIS=false
 GROQ_API_KEY=
 GROQ_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
-GROQ_TIMEOUT_MS=4500
-LOCAL_LLM_URL=
-LOCAL_LLM_MODEL=llama3
+
+# RAG
+VECTOR_MODE=local
+CHROMA_URL=
+VECTOR_STORE_PATH=./data/chroma
+
+# Debug
 AI_DEBUG=false
-
-VECTOR_DB=chroma
-VECTOR_MODE=local
-CHROMA_URL=http://localhost:8000
-CHROMA_LOCAL_PATH=./data/chroma
-CHROMA_KNOWLEDGE_COLLECTION=medifast_knowledge
-CHROMA_MEMORY_COLLECTION=medifast_memory
-
-EMBEDDING_PROVIDER=local
-LOCAL_EMBEDDING_MODEL=Xenova/all-MiniLM-L6-v2
-
-RETRIEVAL_SEMANTIC_WEIGHT=0.55
-RETRIEVAL_KEYWORD_WEIGHT=0.35
-RETRIEVAL_CATEGORY_WEIGHT=0.10
-RETRIEVAL_CONFIDENCE_THRESHOLD=0.45
-
-MEDICINE_KNOWLEDGE_CONFIDENCE_THRESHOLD=0.55
-LIVE_MEDICINE_SEMANTIC_MATCHING=true
-MEDICINE_IMPORT_BATCH_SIZE=1000
-MEDICINE_KNOWLEDGE_INDEX_LIMIT=300000
-MEDICINE_ENRICHMENT_LIMIT=5000
-
-SIDE_EFFECTS_AUTO_MERGE_CONFIDENCE=0.8
-SIDE_EFFECTS_UNMATCHED_CONFIDENCE=0.5
-SIDE_EFFECTS_FUZZY_MATCHING=false
-SIDE_EFFECTS_SEMANTIC_MATCHING=false
-MEDICINE_MATCHER_FUZZY_CANDIDATE_LIMIT=500
 ```
 
-### 3. Start MongoDB
+Full documentation is in `.env.example`.
 
-For local MongoDB / Compass:
-
-```text
-mongodb://localhost:27017/medifast
-```
-
-### 4. Seed Demo Data
-
-```bash
-npm run seed
-```
-
-### 5. Import Indian Medicine Dataset
-
-```bash
-npm run import-medicines -- "C:\Users\Ruchin Audichya\Desktop\Indian-Medicine-Dataset-main\DATA\indian_medicine_data.csv"
-```
-
-Validate the imported medicine knowledge:
-
-```bash
-npm run diagnose-medicines
-```
-
-### 6. Enrich Side Effects
-
-```bash
-npm run enrich-side-effects -- "C:\Users\Ruchin Audichya\Desktop\drugs_side_effects_drugs_com.csv"
-```
-
-### 7. Optional: Start Chroma For RAG
-
-```bash
-docker run -p 8000:8000 chromadb/chroma
-```
-
-Docker is optional. Without Docker, set:
-
-```env
-VECTOR_MODE=local
-CHROMA_LOCAL_PATH=./data/chroma
-```
-
-Then:
-
-```bash
-npm run ingest
-```
-
-Check RAG:
-
-```bash
-npm run diagnose-rag
-```
-
-### 8. Import Jaipur Pharmacies
-
-```bash
-npm run import-pharmacies
-```
-
-For another city:
-
-```bash
-npm run import-pharmacies -- Delhi
-```
-
-Validate active pharmacy data:
-
-```bash
-npm run diagnose-pharmacies
-```
-
-### 9. Run Production Diagnostics
-
-```bash
-npm run diagnose-medicines
-npm run diagnose-pharmacies
-npm run diagnose-rag
-```
-
-### 10. Start The Bot
+## Running Locally
 
 ```bash
 npm start
 ```
 
-For development:
+Development mode:
 
 ```bash
 npm run dev
 ```
 
-## Common Telegram Commands
+Run a runtime trace:
+
+```bash
+npm run runtime -- "Dolo near me"
+```
+
+## Commands
+
+User-facing Telegram commands include:
 
 ```text
 /start
-/help
-/search Dolo
+/search
 /nearby
 /family
 /addmember
 /members
-/removeMember Papa
-/sos rare medicine name
+/removeMember
+/health
 /analytics
-/admindebug Dolo near me
+/status
+/runtime
+/trace
+/nearby-debug
+/admindebug
 ```
 
-Natural examples:
+Data and diagnostics scripts:
+
+```bash
+npm run ingest
+npm run import-medicines
+npm run import-pharmacies
+npm run activate-data
+npm run catalog-status
+npm run cleanup-duplicates
+npm run diagnose-medicines
+npm run diagnose-catalog
+npm run diagnose-pharmacies
+npm run diagnose-rag
+npm run diagnose-llm
+npm run diagnose-memory
+npm run production-health
+```
+
+## Project Structure
 
 ```text
-bukhar ki tablet
-sar dard ki dawa
-gas acidity tablet
-papa fever medicine
-reorder papa medicine
-Dolo near me
+src/
+  ai/                 deterministic entity extraction, routing, safety
+  bot/                Telegram handlers and commands
+  cache/              medicine cache
+  diagnostics/        production health and runtime trace helpers
+  events/             event bus and analytics listeners
+  medicine/           catalog, importer, normalizer, graph, enrichment
+  memory/             summarization and semantic memory
+  models/             MongoDB schemas
+  orchestrator/       planning, tool execution, evidence collection
+  pharmacy/           nearby search, ranking, OSM source pipeline
+  providers/          Groq/local/deterministic provider abstractions
+  rag/                loaders, chunking, embeddings, retrieval, diagnostics
+  services/           reusable app services
+  utils/              formatters and helpers
+
+knowledge-base/       trusted RAG documents
+data/medicine-sources medicine CSV/JSON drops
+scripts/              imports, diagnostics, health, runtime tracing
+tests/                Node test suite
+docs/                 architecture and testing documentation
+assets/readme/        GitHub diagrams
 ```
 
-## Database Collections
+## Testing
 
-Existing collections:
-
-- pharmacies
-- inventories
-- sosrequests
-
-New / upgraded collections:
-
-- userprofiles
-- searchhistories
-- conversationmemories
-- analyticsevents
-- retrievalmetrics
-- medicineknowledges
-- unmatchedmedicineenrichments
-- pharmacysearchhistories
-
-No manual migration is required. Mongoose creates new collections and optional fields when used.
-
-Pharmacy geo support creates sparse `2dsphere` indexes on both:
-
-```js
-{ location: "2dsphere" }
-{ geoLocation: "2dsphere" }
-```
-
-Existing pharmacy records using `geoLocation` still work.
-
-## Tests
-
-Run:
+Run all tests:
 
 ```bash
 npm test
 ```
 
-Current coverage includes:
+Run formatting check:
 
-- entity extraction
-- router decisions
-- medicine search fallback
-- medicine import mapping
-- medicine matcher
-- medicine knowledge diagnostics
-- pharmacy diagnostics
-- semantic matching
-- side-effect enrichment
-- RAG chunking and retrieval scoring
-- pharmacy location handling
-- pharmacy ranking
-- nearby workflow formatting
-- OpenStreetMap pharmacy source parsing
-- pharmacy import normalization and deduplication
+```bash
+git diff --check
+```
 
-## Medical Safety
+Pre-demo health:
 
-MediFast AI does not diagnose users.
+```bash
+npm run production-health
+```
 
-It should:
+## Roadmap
 
-- help users discover medicines and availability
-- avoid inventing medicine information
-- keep low-confidence rows unmatched
-- show doctor/pharmacist safety disclaimers
-- avoid casual prescription recommendations
+- Complete full catalog vector activation beyond the current partial coverage.
+- Add more verified India-specific medicine data sources.
+- Add WhatsApp adapter.
+- Add pharmacy live stock integrations.
+- Add guardian notification flows with explicit user consent.
+- Add voice-note understanding.
+- Add dashboard for top medicines, symptoms, locations, and failed lookups.
+- Add open-source LLM deployment path for cheaper private inference.
 
-## Future Scale Ideas
+## Future Improvements
 
-- WhatsApp bot integration.
-- Pharmacist web dashboard.
-- Live stock sync with pharmacy POS systems.
-- Google Maps Places integration.
-- Open-source LLM fallback for low-confidence intent only.
-- Indic-language model support for better Hindi/Hinglish.
-- Refill reminders for chronic medicines.
-- Family guardian alerts for medicine orders.
-- Order handoff to pharmacy WhatsApp.
-- Shortage heatmaps and pharmacy demand analytics.
+- Better medicine disambiguation for same-brand combinations.
+- Stronger prescription-risk classifier.
+- More robust open/closed pharmacy hours from OSM tags.
+- City-wise pharmacy import jobs for all major Indian cities.
+- Chroma deployment profile for production.
+- Admin web dashboard.
+- Continuous catalog quality scoring.
 
-The AI direction should stay cost-conscious. OpenAI is not required for the current MVP. A cheaper open-source LLM can be added later through the existing provider and tool registry layers.
+## Contributors
+
+Built by Ruchin Audichya as an India-first healthcare assistant MVP.
+
+## License
+
+Add a license before public production use if this repository is intended for open-source distribution.

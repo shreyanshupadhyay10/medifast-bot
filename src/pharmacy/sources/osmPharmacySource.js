@@ -1,4 +1,6 @@
 const DEFAULT_OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+const OSM_TIMEOUT_MS = () => Number(process.env.OSM_TIMEOUT_MS || 8000);
+const OSM_RETRIES = () => Number(process.env.OSM_RETRIES || 1);
 
 const buildOverpassQuery = ({ lat, lng, radiusKm }) => {
   const radiusMeters = Math.round(Number(radiusKm || 25) * 1000);
@@ -16,6 +18,24 @@ const buildOverpassQuery = ({ lat, lng, radiusKm }) => {
   `;
 };
 
+const postOverpass = async ({ fetchImpl, overpassUrl, query }) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), OSM_TIMEOUT_MS());
+  try {
+    return await fetchImpl(overpassUrl, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+        "user-agent": "MediFastAI/1.0 pharmacy-import",
+      },
+      body: new URLSearchParams({ data: query }),
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 const fetchOsmPharmacies = async ({ city, fetchImpl = global.fetch, overpassUrl = process.env.OVERPASS_URL || DEFAULT_OVERPASS_URL }) => {
   if (!fetchImpl) {
     throw new Error("fetch is not available. Use Node.js 18+ or pass fetchImpl.");
@@ -27,17 +47,20 @@ const fetchOsmPharmacies = async ({ city, fetchImpl = global.fetch, overpassUrl 
     radiusKm: city.radiusKm,
   });
 
-  const response = await fetchImpl(overpassUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-      "user-agent": "MediFastAI/1.0 pharmacy-import",
-    },
-    body: new URLSearchParams({ data: query }),
-  });
+  let response;
+  let lastError;
+  for (let attempt = 0; attempt <= OSM_RETRIES(); attempt += 1) {
+    try {
+      response = await postOverpass({ fetchImpl, overpassUrl, query });
+      if (response.ok) break;
+      lastError = new Error(`OpenStreetMap Overpass request failed with status ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
 
-  if (!response.ok) {
-    throw new Error(`OpenStreetMap Overpass request failed with status ${response.status}`);
+  if (!response?.ok) {
+    throw lastError || new Error("OpenStreetMap Overpass request failed");
   }
 
   const body = await response.json();
@@ -52,4 +75,5 @@ module.exports = {
   DEFAULT_OVERPASS_URL,
   buildOverpassQuery,
   fetchOsmPharmacies,
+  postOverpass,
 };

@@ -30,6 +30,14 @@ const pharmacySearchHistorySchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    confidenceQuality: {
+      type: Number,
+      default: 0,
+    },
+    medicineConfidence: {
+      type: Number,
+      default: 0,
+    },
     topPharmacyName: {
       type: String,
       trim: true,

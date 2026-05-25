@@ -11,8 +11,9 @@ test("extracts structured condition facts from entities", () => {
 
   assert.deepEqual(
     facts.map((fact) => `${fact.entity}:${fact.value}`),
-    ["papa:bp", "papa:diabetes"]
+    ["papa:papa", "papa:bp", "papa:diabetes"]
   );
+  assert.equal(facts[0].type, "family_relationship");
 });
 
 test("summarizer keeps important facts and bounds recent messages", () => {

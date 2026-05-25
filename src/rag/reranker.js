@@ -1,10 +1,12 @@
+const STOPWORDS = new Set(["a", "an", "and", "are", "for", "from", "hai", "is", "ka", "ke", "ki", "ko", "me", "of", "the", "to"]);
+
 const tokenize = (text = "") =>
   new Set(
     String(text)
       .toLowerCase()
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .split(/\s+/)
-      .filter(Boolean)
+      .filter((token) => token && !STOPWORDS.has(token))
   );
 
 const overlapScore = (query, text) => {

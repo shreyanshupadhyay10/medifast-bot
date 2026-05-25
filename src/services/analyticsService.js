@@ -33,11 +33,15 @@ const getAnalyticsSummary = async () => {
     latestImport,
     latestSideEffectsEnrichment,
     pharmacySearchStats,
+    pharmacyConfidenceQuality,
     locationPermissionAccepted,
     pharmacyRankingUsage,
     latestPharmacyImport,
     orchestrationStats,
     providerStats,
+    sideEffectQueries,
+    groqUsage,
+    estimatedPharmacyConfidenceUsage,
   ] = await Promise.all([
     aggregateTop("topMedicineName"),
     aggregateTop("intentKey"),
@@ -111,6 +115,11 @@ const getAnalyticsSummary = async () => {
       },
       { $project: { _id: 0, nearbySearches: 1, inventoryMatches: 1, avgResultCount: 1, expandedSearches: 1 } },
     ]),
+    AnalyticsEvent.aggregate([
+      { $match: { eventType: "pharmacy.ranking.completed" } },
+      { $group: { _id: null, avgConfidenceQuality: { $avg: "$metadata.confidenceQuality" }, count: { $sum: 1 } } },
+      { $project: { _id: 0, avgConfidenceQuality: 1, count: 1 } },
+    ]),
     AnalyticsEvent.countDocuments({ eventType: "location.permission.accepted" }),
     AnalyticsEvent.countDocuments({ eventType: "pharmacy.ranking.completed" }),
     AnalyticsEvent.findOne({ eventType: "pharmacy.import.completed" }).sort({ createdAt: -1 }).lean(),
@@ -134,6 +143,9 @@ const getAnalyticsSummary = async () => {
       { $group: { _id: "$metadata.provider", count: { $sum: 1 }, avgLatencyMs: { $avg: "$metadata.providerLatencyMs" } } },
       { $project: { provider: "$_id", count: 1, avgLatencyMs: 1, _id: 0 } },
     ]),
+    AnalyticsEvent.countDocuments({ eventType: "side_effect.query" }),
+    AnalyticsEvent.countDocuments({ eventType: "llm.groq.used" }),
+    AnalyticsEvent.countDocuments({ eventType: "pharmacy.confidence.estimated" }),
   ]);
 
   return {
@@ -171,6 +183,8 @@ const getAnalyticsSummary = async () => {
       }),
       locationPermissionAccepted,
       pharmacyRankingUsage,
+      estimatedConfidenceUsage: estimatedPharmacyConfidenceUsage,
+      confidenceQuality: pharmacyConfidenceQuality[0] || { avgConfidenceQuality: 0, count: 0 },
       latestImport: latestPharmacyImport?.metadata || null,
     },
     orchestration: orchestrationStats[0] || {
@@ -182,6 +196,8 @@ const getAnalyticsSummary = async () => {
       avgOrchestrationLatencyMs: 0,
     },
     providerStats,
+    sideEffectQueries,
+    groqUsage,
   };
 };
 

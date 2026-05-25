@@ -17,6 +17,8 @@ const {
   formatNotFound,
   formatReorderPrompt,
   formatSearchFollowUp,
+  buildSearchActionKeyboard,
+  formatMemorySaved,
 } = require("../../utils/formatter");
 const logger = require("../../utils/logger");
 
@@ -53,8 +55,18 @@ const handleSearch = async (ctx, query) => {
     const aliasExpansion = expandMedicineQuery(query);
     const intent = detectIntent(aliasExpansion.alias ? aliasExpansion.normalizedQuery : query);
     const mentionedMember = findMentionedFamilyMember(profile, query);
+    const familyTarget = mentionedMember || (entities.person && entities.person !== "self"
+      ? { name: entities.familyMemberName || entities.person, relation: entities.person, ageGroup: "adult" }
+      : null);
     const safety = assessSafety({ entities, intent, mentionedMember, query });
     const userLocation = await getSessionLocation(ctx.from.id);
+    if (entities.intentType === "side_effects") {
+      eventBus.emitSafe("side_effect.query", {
+        telegramId: ctx.from.id,
+        query,
+        medicine: entities.medicine,
+      });
+    }
 
     if (/\b(reorder|repeat|refill|phir se|dobara)\b/i.test(query) && mentionedMember) {
       const recent = await getRecentForFamilyMember(ctx.from.id, mentionedMember.name);
@@ -77,6 +89,39 @@ const handleSearch = async (ctx, query) => {
       });
     }
 
+    const genericFamilyMedicineAsk = /\b(medicine|tablet|dawa|goli|meds?)\b/i.test(query) && familyTarget && !entities.symptom && !entities.medicine;
+    if (genericFamilyMedicineAsk) {
+      const recent = await getRecentForFamilyMember(ctx.from.id, familyTarget.name);
+      await addConversationTurn({ telegramId: ctx.from.id, userText: query, entities });
+      return ctx.reply(formatReorderPrompt(familyTarget, recent), {
+        parse_mode: "HTML",
+        reply_markup: recent?.topMedicineName
+          ? {
+              inline_keyboard: [
+                [{ text: "🔍 Check Availability", callback_data: `search_intent:${recent.topMedicineName.substring(0, 50)}` }],
+                [{ text: "📍 Nearby Pharmacy", callback_data: "nearby:open" }],
+              ],
+            }
+          : undefined,
+      });
+    }
+
+    if (entities.condition && familyTarget && !entities.symptom && !entities.medicine && !entities.nearbyIntent) {
+      const updatedMemory = await addConversationTurn({ telegramId: ctx.from.id, userText: query, entities });
+      const newFacts = (updatedMemory?.facts || []).filter((fact) =>
+        fact.entity === entities.person || fact.entity === familyTarget.relation
+      );
+      return ctx.reply(formatMemorySaved({ member: familyTarget, facts: newFacts, query }), {
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🔍 Search Medicine", callback_data: "prompt_search" }],
+            [{ text: "👨‍👩‍👧 View Family", callback_data: "family:members" }],
+          ],
+        },
+      });
+    }
+
     if (intent.needsFollowUp) {
       await addConversationTurn({ telegramId: ctx.from.id, userText: query, entities });
       return ctx.reply(formatSearchFollowUp(query), {
@@ -93,7 +138,9 @@ const handleSearch = async (ctx, query) => {
       });
     }
 
-    const normalizedIntentQuery = aliasExpansion.alias ? aliasExpansion.normalizedQuery : intent.normalizedQuery;
+    const normalizedIntentQuery = aliasExpansion.alias
+      ? aliasExpansion.normalizedQuery
+      : entities.medicine || intent.normalizedQuery;
 
     if (entities.nearbyIntent) {
       await addConversationTurn({ telegramId: ctx.from.id, userText: query, entities });
@@ -120,7 +167,7 @@ const handleSearch = async (ctx, query) => {
       alias: aliasExpansion.alias,
     };
     const repeatSearch = await getRecentRepeat(ctx.from.id, normalizedIntentQuery);
-    const { results, sos, query: normalizedQuery } = await searchMedicine(normalizedIntentQuery, searchOptions);
+    const { results, sos, query: normalizedQuery, suggestions = [] } = await searchMedicine(normalizedIntentQuery, searchOptions);
     const memory = await addConversationTurn({ telegramId: ctx.from.id, userText: query, entities });
 
     if (results.length === 0) {
@@ -132,7 +179,7 @@ const handleSearch = async (ctx, query) => {
       });
       if (sos) {
         // Prompt user to use SOS
-        await ctx.reply(formatNotFound(normalizedQuery), {
+        await ctx.reply(formatNotFound(normalizedQuery, suggestions), {
           parse_mode: "HTML",
           reply_markup: {
             inline_keyboard: [
@@ -148,7 +195,7 @@ const handleSearch = async (ctx, query) => {
           },
         });
       } else {
-        await ctx.reply(formatNotFound(normalizedQuery), { parse_mode: "HTML" });
+        await ctx.reply(formatNotFound(normalizedQuery, suggestions), { parse_mode: "HTML" });
       }
       return;
     }
@@ -201,18 +248,7 @@ const handleSearch = async (ctx, query) => {
 
     await ctx.reply(formatSearchResults(results, normalizedQuery, { intent, mentionedMember, repeatSearch, routes, safety, alias: aliasExpansion.alias, aiContext, entities }), {
       parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "🔄 Search Again", callback_data: "prompt_search" },
-            { text: "📍 Nearby Pharmacy", callback_data: "nearby:open" },
-          ],
-          [
-            { text: "👨‍👩‍👧 Family", callback_data: "family:open" },
-            { text: "🆘 SOS", callback_data: `sos:${normalizedQuery.substring(0, 50)}` },
-          ],
-        ],
-      },
+      reply_markup: buildSearchActionKeyboard(normalizedQuery),
     });
 
     logger.info(
